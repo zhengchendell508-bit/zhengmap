@@ -1,0 +1,3844 @@
+html,
+body,
+.app,
+#map {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+html.photo-viewer-immersive,
+html.photo-viewer-immersive body {
+  background: #000;
+}
+
+html,
+body {
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #f4f1f3;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.app {
+  position: relative;
+}
+
+
+.top-toolbar {
+  position: absolute;
+  z-index: 1400;
+  top: 14px;
+  right: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+
+
+.tool-btn {
+  width: 48px;
+  height: 48px;
+  border: none;
+  border-radius: 16px;
+  background: rgba(255,255,255,0.94);
+  color: #222;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+  backdrop-filter: blur(10px);
+}
+
+
+
+.tool-btn:last-child {
+  border:none;
+}
+
+
+.tool-btn:active {
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.tool-btn span {
+  display: block;
+  width: 12px;
+  height: 2px;
+  margin: 3px 0;
+  border-radius: 99px;
+  background: currentColor;
+}
+
+.text-tool {
+  font-size: 18px;
+}
+
+
+.nav-controls {
+  position: absolute;
+  z-index: 1300;
+  top: 320px;
+  right: 10px;
+  display: grid;
+  gap: 14px;
+  justify-items: end;
+}
+
+
+
+.round-nav {
+  width: 58px;
+  height: 58px;
+  border-radius: 18px;
+  border: none;
+  background: rgba(255,255,255,0.95);
+  box-shadow: 0 6px 16px rgba(0,0,0,0.14);
+  color: #2f8f48;
+  display: grid;
+  place-items: center;
+}
+
+
+.round-nav:active,
+.round-nav.is-pressed {
+  transform: translateY(3px) scale(0.965);
+  box-shadow: 0 10px 18px rgba(43, 37, 48, 0.22), 0 2px 7px rgba(43, 37, 48, 0.16);
+  filter: brightness(0.985);
+}
+
+.round-nav.is-locating::before,
+.round-nav.is-following::before {
+  content: "";
+  position: absolute;
+  inset: -9px;
+  border: 2px solid rgba(66, 168, 82, 0.34);
+  border-radius: 50%;
+  animation: pulse 1.2s ease-out infinite;
+}
+
+.round-nav.is-following::before {
+  animation: none;
+  border-color: rgba(66, 168, 82, 0.5);
+}
+
+
+.round-nav svg {
+  width: 24px;
+  height: 24px;
+}
+
+
+.compass-needle {
+  transform-origin: 32px 32px;
+  transform: rotate(var(--bearing, 42deg));
+  transition: transform 240ms linear;
+}
+
+.is-locating .compass-needle {
+  animation: spin 1.1s linear infinite;
+}
+
+.add-pin-btn {
+  color: #302e35;
+}
+
+.rotate-controls {
+  width: 40px;
+  border: 1px solid rgba(116, 109, 130, 0.1);
+  border-radius: 999px;
+  background: rgba(255, 251, 255, 0.9);
+  box-shadow: 0 12px 30px rgba(43, 37, 48, 0.12);
+  overflow: hidden;
+}
+
+.rotate-controls button {
+  width: 100%;
+  height: 34px;
+  border: 0;
+  border-bottom: 1px solid rgba(67, 59, 72, 0.14);
+  background: transparent;
+  color: #302e35;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.rotate-controls button:last-child {
+  border-bottom: 0;
+}
+
+.status-pill,
+.heading-chip {
+  position: absolute;
+  z-index: 1250;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100vw - 150px);
+  border-radius: 999px;
+  text-align: center;
+  font-weight: 800;
+  pointer-events: none;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.22);
+}
+
+.status-pill {
+  top: max(16px, env(safe-area-inset-top));
+  min-width: 190px;
+  padding: 8px 12px;
+  background: rgba(17, 24, 39, 0.88);
+  color: #fff;
+  font-size: 13px;
+}
+
+.status-pill.success {
+  background: rgba(22, 101, 52, 0.9);
+}
+
+.status-pill.warning {
+  background: rgba(180, 83, 9, 0.92);
+}
+
+.status-pill.error {
+  background: rgba(153, 27, 27, 0.92);
+}
+
+.heading-chip {
+  top: max(58px, calc(env(safe-area-inset-top) + 58px));
+  padding: 4px 8px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #111827;
+  font-size: 11px;
+}
+
+.settings-panel {
+  position: absolute;
+  z-index: 2200;
+  top: max(84px, calc(env(safe-area-inset-top) + 84px));
+  left: 14px;
+  width: min(280px, calc(100vw - 28px));
+  max-height: min(620px, calc(100vh - 110px));
+  overflow-y: auto;
+  display: none;
+  padding: 14px;
+  border: 1px solid rgba(67, 59, 72, 0.12);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 14px 34px rgba(43, 37, 48, 0.2);
+}
+
+.settings-panel.is-open {
+  display: block;
+}
+
+.settings-panel label {
+  display: block;
+  margin: 12px 0 5px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.settings-panel input[type="range"],
+.settings-panel input[type="color"],
+.settings-panel select,
+.settings-panel button,
+#importInput {
+  width: 100%;
+}
+
+.settings-panel input[type="color"] {
+  height: 36px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+
+.settings-panel select,
+.settings-panel button {
+  height: 34px;
+  border-radius: 10px;
+}
+
+#exportBtn,
+.secondary-btn {
+  border: 0;
+  color: #fff;
+  font-weight: 800;
+}
+
+#exportBtn {
+  background: #1479e8;
+}
+
+.secondary-btn {
+  margin-top: 12px;
+  background: #5a6268;
+}
+
+.advanced-settings-block {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(67, 59, 72, 0.12);
+}
+
+.advanced-settings-block summary {
+  min-height: 34px;
+  padding: 0 10px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #111827;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+  list-style: none;
+}
+
+.advanced-settings-block summary::-webkit-details-marker {
+  display: none;
+}
+
+.advanced-settings-block summary::after {
+  content: "展开";
+  margin-left: 8px;
+  font-size: 11px;
+  opacity: 0.82;
+}
+
+.advanced-settings-block[open] summary::after {
+  content: "收起";
+}
+
+.advanced-settings-block #exportBtn {
+  margin-top: 12px;
+}
+
+.number-pad {
+  position: absolute;
+  z-index: 3000;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: none;
+  width: min(288px, calc(100vw - 32px));
+  padding: 14px;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+}
+
+.number-pad.is-open {
+  display: block;
+}
+
+.pad-title {
+  margin-bottom: 10px;
+  text-align: center;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.number-display {
+  height: 34px;
+  margin-bottom: 10px;
+  border: 2px solid #ddd;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.pad-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.numBtn {
+  height: 44px;
+  border: 0;
+  border-radius: 12px;
+  background: #1479e8;
+  color: #fff;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.pad-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.pad-actions button {
+  flex: 1;
+  height: 30px;
+  border: 0;
+  border-radius: 12px;
+  color: #fff;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+#confirmNumber {
+  background: #28a745;
+}
+
+#cancelNumber {
+  background: #dc3545;
+}
+
+.number-marker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  font-weight: 800;
+  box-shadow: 0 0 6px rgba(0, 0, 0, 0.35);
+  user-select: none;
+}
+
+.my-location-wrap {
+  position: relative;
+  width: 24px;
+  height: 32px;
+}
+
+.my-location-heading {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-origin: 12px 21px;
+  transition: transform 0.18s linear;
+}
+
+.my-location-tip {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-bottom: 8px solid #1e90ff;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.25));
+}
+
+.my-location {
+  position: absolute;
+  left: 50%;
+  top: 10px;
+  transform: translateX(-50%);
+  width: 18px;
+  height: 18px;
+  border: 4px solid #fff;
+  border-radius: 50%;
+  background: #1e90ff;
+  box-shadow: 0 0 0 4px rgba(30, 144, 255, 0.28), 0 2px 8px rgba(0, 0, 0, 0.35);
+  box-sizing: border-box;
+}
+
+
+.zoom-display {
+  position: absolute;
+  z-index: 1200;
+  right: 12px;
+  bottom: 14px;
+  padding: 6px 12px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.94);
+  font-size: 12px;
+  font-weight: 700;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.12);
+}
+
+
+
+.mobile-status{
+  display:none !important;
+}
+
+
+.mobile-status span {
+  flex: 1;
+  text-align: center;
+  font-size: 14px;
+  line-height: 1.18;
+}
+
+.mobile-status strong {
+  min-width: 74px;
+  height: 34px;
+  border: 1px solid rgba(66, 168, 82, 0.27);
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  color: #2e8d41;
+  background: rgba(66, 168, 82, 0.09);
+  font-size: 13px;
+}
+
+@keyframes pulse {
+  from {
+    opacity: 0.95;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.18);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 700px) {
+  
+.top-toolbar {
+  position: absolute;
+  z-index: 1400;
+  top: 14px;
+  right: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+
+  
+.nav-controls {
+  position: absolute;
+  z-index: 1300;
+  top: 320px;
+  right: 10px;
+  display: grid;
+  gap: 14px;
+  justify-items: end;
+}
+
+
+  
+.round-nav {
+  width: 58px;
+  height: 58px;
+  border-radius: 18px;
+  border: none;
+  background: rgba(255,255,255,0.95);
+  box-shadow: 0 6px 16px rgba(0,0,0,0.14);
+  color: #2f8f48;
+  display: grid;
+  place-items: center;
+}
+
+
+  
+.round-nav svg {
+  width: 24px;
+  height: 24px;
+}
+
+
+  .rotate-controls {
+    width: 49px;
+  }
+
+  .rotate-controls button {
+    height: 43px;
+  }
+
+  .status-pill {
+    display: none;
+  }
+
+  .heading-chip {
+    top: auto;
+    left: 14px;
+    bottom: calc(104px + env(safe-area-inset-bottom));
+    transform: none;
+    max-width: calc(100vw - 130px);
+  }
+
+  
+.zoom-display {
+  position: absolute;
+  z-index: 1200;
+  right: 12px;
+  bottom: 14px;
+  padding: 6px 12px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.94);
+  font-size: 12px;
+  font-weight: 700;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.12);
+}
+
+
+
+  
+.round-nav {
+  width: 58px;
+  height: 58px;
+  border-radius: 18px;
+  border: none;
+  background: rgba(255,255,255,0.95);
+  box-shadow: 0 6px 16px rgba(0,0,0,0.14);
+  color: #2f8f48;
+  display: grid;
+  place-items: center;
+}
+
+
+  
+.round-nav svg {
+  width: 24px;
+  height: 24px;
+}
+
+
+
+  
+.mobile-status{
+  display:none !important;
+}
+
+}
+
+
+.rotate-controls{
+  display:none !important;
+}
+
+
+@media (max-width:700px){
+
+  .top-toolbar{
+    right:8px;
+    gap:8px;
+  }
+
+  .tool-btn{
+    width:44px;
+    height:44px;
+    font-size:10px;
+  }
+
+  .nav-controls{
+    right:8px;
+    top:280px;
+    gap:10px;
+  }
+
+  .round-nav{
+    width:52px;
+    height:52px;
+  }
+
+  .round-nav svg{
+    width:22px;
+    height:22px;
+  }
+}
+
+
+/* Definitive fix: separate the two floating buttons completely */
+.nav-controls{
+  top:auto !important;
+  bottom:120px !important;
+  right:10px !important;
+  display:block !important;
+}
+
+#navButton{
+  position:absolute !important;
+  right:0 !important;
+  bottom:80px !important;
+}
+
+#addHereBtn{
+  position:absolute !important;
+  right:0 !important;
+  bottom:0 !important;
+}
+
+.round-nav.is-following::before,
+.round-nav.is-locating::before{
+  inset:-3px !important;
+  pointer-events:none !important;
+}
+
+@media (max-width:700px){
+  .nav-controls{
+    bottom:100px !important;
+  }
+
+  #navButton{
+    bottom:72px !important;
+  }
+}
+
+/* Building mode panel */
+.building-panel {
+  position: absolute;
+  z-index: 3200;
+  left: 12px;
+  right: 12px;
+  bottom: calc(18px + env(safe-area-inset-bottom));
+  display: none;
+  padding: 12px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.97);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
+  max-height: min(52vh, 420px);
+  overflow: auto;
+}
+
+.building-panel.is-open {
+  display: block;
+}
+
+.building-panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.building-panel-header strong {
+  display: block;
+  font-size: 18px;
+  font-weight: 900;
+  color: #111827;
+}
+
+.building-panel-header span {
+  display: block;
+  margin-top: 3px;
+  font-size: 12px;
+  line-height: 1.25;
+  color: #6b7280;
+}
+
+#closeBuildingPanel {
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 24px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.position-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(74px, 1fr));
+  gap: 8px;
+}
+
+.position-btn {
+  min-height: 54px;
+  border: 2px solid rgba(20, 121, 232, 0.2);
+  border-radius: 14px;
+  background: #f8fafc;
+  color: #111827;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  font-weight: 900;
+}
+
+.position-btn strong {
+  font-size: 18px;
+}
+
+.position-btn small {
+  max-width: 100%;
+  padding: 0 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+  color: #6b7280;
+}
+
+.position-btn.is-selected {
+  background: #1479e8;
+  border-color: #1479e8;
+  color: #fff;
+}
+
+.position-btn.is-selected small {
+  color: rgba(255, 255, 255, 0.86);
+}
+
+.building-panel-actions {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.building-panel-actions button {
+  min-height: 38px;
+  border: 0;
+  border-radius: 12px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+#showSelectedPositions {
+  background: #16a34a;
+}
+
+#showAllPositions {
+  background: #f59e0b;
+}
+
+#restoreBuildings {
+  background: #374151;
+}
+
+#deleteSelectedPositions {
+  background: #dc2626;
+}
+
+#bulkDeletePositions {
+  background: #9333ea;
+}
+
+
+.empty-position {
+  grid-column: 1 / -1;
+  padding: 12px;
+  border-radius: 12px;
+  background: #f3f4f6;
+  color: #6b7280;
+  text-align: center;
+  font-weight: 800;
+}
+
+.number-marker.building-marker::after {
+  content: "楼";
+  margin-left: 1px;
+  font-size: 0.58em;
+  font-weight: 900;
+}
+
+.number-marker.position-marker {
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.24);
+}
+
+@media (max-width: 700px) {
+  .building-panel {
+    left: 8px;
+    right: 8px;
+    bottom: calc(10px + env(safe-area-inset-bottom));
+    max-height: 55vh;
+  }
+
+  .building-panel-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .position-list {
+    grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+  }
+}
+
+/* Mobile compact building panel controls */
+@media (max-width: 700px) {
+  .building-panel {
+    left: 6px !important;
+    right: 6px !important;
+    bottom: calc(6px + env(safe-area-inset-bottom)) !important;
+    padding: 8px !important;
+    border-radius: 14px !important;
+    max-height: 44vh !important;
+  }
+
+  .building-panel-header {
+    gap: 8px !important;
+    margin-bottom: 6px !important;
+  }
+
+  .building-panel-header strong {
+    font-size: 15px !important;
+  }
+
+  .building-panel-header span {
+    margin-top: 1px !important;
+    font-size: 10px !important;
+  }
+
+  #closeBuildingPanel {
+    width: 28px !important;
+    height: 28px !important;
+    font-size: 20px !important;
+  }
+
+  .position-list {
+    grid-template-columns: repeat(auto-fill, minmax(48px, 1fr)) !important;
+    gap: 5px !important;
+  }
+
+  .position-btn {
+    min-height: 38px !important;
+    border-radius: 10px !important;
+    border-width: 1px !important;
+    gap: 0 !important;
+  }
+
+  .position-btn strong {
+    font-size: 14px !important;
+  }
+
+  .position-btn small {
+    font-size: 8px !important;
+    display: none !important;
+  }
+
+  .building-panel-actions {
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 5px !important;
+    margin-top: 7px !important;
+  }
+
+  .building-panel-actions button {
+    min-height: 28px !important;
+    height: 28px !important;
+    border-radius: 9px !important;
+    font-size: 10px !important;
+    line-height: 1 !important;
+    padding: 0 3px !important;
+  }
+}
+
+/* 当前公寓选择栏 */
+.community-bar {
+  position: absolute;
+  z-index: 1500;
+  top: max(14px, env(safe-area-inset-top));
+  left: 10px;
+  max-width: calc(100vw - 86px);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.14);
+  backdrop-filter: blur(10px);
+}
+
+.community-bar label {
+  font-size: 12px;
+  font-weight: 900;
+  color: #111827;
+  white-space: nowrap;
+}
+
+.community-bar select,
+.community-bar input.community-combobox {
+  min-width: 120px;
+  max-width: 210px;
+  height: 32px;
+  border: 1px solid rgba(17, 24, 39, 0.16);
+  border-radius: 10px;
+  padding: 0 8px;
+  background: #fff;
+  color: #111827;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.community-bar input.community-combobox {
+  outline: none;
+}
+
+.community-bar input.community-combobox:focus {
+  border-color: rgba(20, 121, 232, 0.58);
+  box-shadow: 0 0 0 2px rgba(20, 121, 232, 0.12);
+}
+
+
+.community-bar .community-dropdown-btn {
+  min-width: 34px;
+  width: 34px;
+  padding: 0;
+  font-size: 13px;
+  line-height: 1;
+  background: #16a34a;
+}
+
+.community-bar #communityTypeSelect {
+  min-width: 92px;
+  max-width: 112px;
+}
+
+.community-bar button {
+  height: 32px;
+  min-width: 42px;
+  border: 0;
+  border-radius: 10px;
+  padding: 0 9px;
+  background: #1479e8;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.community-bar #renameCommunityBtn {
+  background: #5a6268;
+}
+
+/* 自定义公寓地址联想结果：固定显示在搜索框下面，不遮住输入框 */
+.community-suggestion-panel {
+  position: absolute;
+  z-index: 1510;
+  top: calc(100% + 6px);
+  left: 6px;
+  width: min(320px, calc(100vw - 24px));
+  max-height: min(42vh, 280px);
+  overflow-y: auto;
+  display: none;
+  padding: 6px;
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 10px 26px rgba(0,0,0,0.24);
+  border: 1px solid rgba(17, 24, 39, 0.1);
+}
+
+.community-suggestion-panel.is-open {
+  display: grid;
+  gap: 5px;
+}
+
+.community-suggestion-item {
+  width: 100%;
+  border: 0;
+  border-radius: 10px;
+  background: #f8fafc;
+  color: #111827;
+  padding: 8px 9px;
+  text-align: left;
+  font-weight: 900;
+}
+
+.community-suggestion-item:active {
+  background: #e0f2fe;
+}
+
+.community-suggestion-item strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  line-height: 1.15;
+}
+
+.community-suggestion-item span {
+  display: block;
+  margin-top: 2px;
+  color: #64748b;
+  font-size: 10px;
+  line-height: 1.15;
+}
+
+@media (max-width:700px) {
+  .community-bar {
+    left: 8px;
+    top: max(10px, env(safe-area-inset-top));
+    max-width: calc(100vw - 64px);
+    gap: 4px;
+    padding: 4px;
+    border-radius: 12px;
+  }
+
+  .community-bar label {
+    display: none;
+  }
+
+  .community-bar select,
+.community-bar input.community-combobox {
+    min-width: 96px;
+    max-width: calc(100vw - 206px);
+    height: 28px;
+    font-size: 12px;
+    padding: 0 6px;
+  }
+
+  
+.community-bar .community-dropdown-btn {
+  min-width: 34px;
+  width: 34px;
+  padding: 0;
+  font-size: 13px;
+  line-height: 1;
+  background: #16a34a;
+}
+
+.community-bar #communityTypeSelect {
+    min-width: 78px;
+    max-width: 86px;
+    font-size: 11px;
+  }
+
+  .community-bar button {
+    height: 28px;
+    min-width: 36px;
+    padding: 0 7px;
+    font-size: 11px;
+  }
+  .community-suggestion-panel {
+    top: calc(100% + 5px) !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: auto !important;
+    max-width: none !important;
+    max-height: 34vh !important;
+    padding: 5px !important;
+    border-radius: 11px !important;
+  }
+
+  .community-suggestion-item {
+    padding: 7px 8px !important;
+  }
+
+  .community-suggestion-item strong {
+    font-size: 12px !important;
+  }
+
+  .community-suggestion-item span {
+    font-size: 9px !important;
+  }
+
+}
+
+/* 独立编号模式：底部选择面板只显示一组号码，不显示重复小号数字 */
+.position-btn.flat-position-btn {
+  min-height: 50px;
+  gap: 0;
+}
+
+.position-btn.flat-position-btn strong {
+  font-size: 20px;
+}
+
+.position-btn.flat-position-btn small {
+  display: none !important;
+}
+
+@media (max-width: 700px) {
+  .position-btn.flat-position-btn {
+    min-height: 38px !important;
+  }
+
+  .position-btn.flat-position-btn strong {
+    font-size: 15px !important;
+  }
+}
+
+/* 楼组完整号码模式 */
+.number-marker.group-marker {
+  padding: 0 8px;
+  min-width: 54px;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.22);
+}
+
+.number-marker.twofloor-marker,
+.number-marker.group-marker,
+.number-marker.group-position-marker {
+  letter-spacing: 0.2px;
+}
+
+.number-marker.group-position-marker {
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.24);
+}
+
+.position-btn.group-full-position-btn {
+  min-height: 44px;
+}
+
+.position-btn.group-full-position-btn strong {
+  font-size: 16px;
+}
+
+@media (max-width: 700px) {
+  .position-btn.group-full-position-btn {
+    min-height: 36px !important;
+  }
+
+  .position-btn.group-full-position-btn strong {
+    font-size: 13px !important;
+  }
+}
+
+
+/* 楼组主标记：超紧凑竖式长方形，手机缩放时尽量少占空间 */
+.number-marker.group-marker {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 0 !important;
+  padding: 2px 3px !important;
+  min-width: 48px !important;
+  line-height: 0.95 !important;
+  white-space: nowrap !important;
+  border-radius: 7px !important;
+}
+
+.number-marker.group-marker span {
+  display: block;
+  white-space: nowrap;
+  font-weight: 900;
+  color: #fff !important;
+  text-shadow: 0 0 2px rgba(255,255,255,0.45), 0 1px 1px rgba(0,0,0,0.38);
+}
+
+@media (max-width: 700px) {
+  .number-marker.group-marker {
+    min-width: 44px !important;
+    padding: 1px 3px !important;
+    border-radius: 6px !important;
+  }
+}
+
+
+/* 楼组完整号码：底部号码按楼层分区。左边是一楼，中间是二楼，右边是三楼。 */
+.position-list.group-floor-layout {
+  display: flex !important;
+  grid-template-columns: none !important;
+  gap: 8px !important;
+  overflow-x: auto !important;
+  align-items: flex-start !important;
+  padding-bottom: 2px !important;
+}
+
+.floor-column {
+  flex: 1 0 30% !important;
+  min-width: 126px !important;
+  padding: 6px !important;
+  border: 1px solid rgba(148, 163, 184, 0.22) !important;
+  border-radius: 13px !important;
+  background: rgba(15, 23, 42, 0.18) !important;
+}
+
+.floor-column-title {
+  margin: 0 0 6px !important;
+  text-align: center !important;
+  color: #ffffff !important;
+  font-size: 12px !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.5px !important;
+}
+
+.floor-number-grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(48px, 1fr)) !important;
+  gap: 5px !important;
+}
+
+.floor-number-grid .position-btn.group-full-position-btn {
+  min-height: 38px !important;
+  border-radius: 10px !important;
+}
+
+.floor-number-grid .position-btn.group-full-position-btn strong {
+  font-size: 15px !important;
+}
+
+@media (max-width: 700px) {
+  .position-list.group-floor-layout {
+    gap: 5px !important;
+  }
+
+  .floor-column {
+    flex-basis: 31% !important;
+    min-width: 108px !important;
+    padding: 5px !important;
+    border-radius: 11px !important;
+  }
+
+  .floor-column-title {
+    margin-bottom: 4px !important;
+    font-size: 10px !important;
+  }
+
+  .floor-number-grid {
+    grid-template-columns: repeat(2, minmax(42px, 1fr)) !important;
+    gap: 4px !important;
+  }
+
+  .floor-number-grid .position-btn.group-full-position-btn {
+    min-height: 34px !important;
+  }
+
+  .floor-number-grid .position-btn.group-full-position-btn strong {
+    font-size: 13px !important;
+  }
+}
+
+
+/* 手机端：楼层分区号码按钮进一步缩小，减少底部面板占用 */
+@media (max-width: 700px) {
+  .building-panel {
+    padding: 6px !important;
+    max-height: 40vh !important;
+  }
+
+  .building-panel-header strong {
+    font-size: 13px !important;
+    line-height: 1.05 !important;
+  }
+
+  .building-panel-header span {
+    font-size: 9px !important;
+    line-height: 1.15 !important;
+  }
+
+  .position-list.group-floor-layout {
+    gap: 3px !important;
+    padding-bottom: 1px !important;
+  }
+
+  .floor-column {
+    flex-basis: 30% !important;
+    min-width: 82px !important;
+    padding: 3px !important;
+    border-radius: 8px !important;
+  }
+
+  .floor-column-title {
+    margin-bottom: 2px !important;
+    font-size: 8px !important;
+    line-height: 1 !important;
+  }
+
+  .floor-number-grid {
+    grid-template-columns: repeat(2, minmax(34px, 1fr)) !important;
+    gap: 2px !important;
+  }
+
+  .floor-number-grid .position-btn.group-full-position-btn {
+    min-height: 26px !important;
+    border-radius: 7px !important;
+    border-width: 1px !important;
+  }
+
+  .floor-number-grid .position-btn.group-full-position-btn strong {
+    font-size: 11px !important;
+    line-height: 1 !important;
+  }
+
+  .building-panel-actions {
+    gap: 4px !important;
+    margin-top: 5px !important;
+  }
+
+  .building-panel-actions button {
+    min-height: 24px !important;
+    height: 24px !important;
+    border-radius: 7px !important;
+    font-size: 9px !important;
+  }
+}
+
+/* 公寓群牌面：地图默认只显示公寓群卡片，点击后再展开楼栋 */
+.community-card-marker {
+  width: 154px;
+  min-height: 58px;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 2px solid rgba(20, 121, 232, 0.28);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.97);
+  color: #111827;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(10px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  text-align: left;
+  user-select: none;
+}
+
+.community-card-marker strong {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  line-height: 1.12;
+  font-weight: 950;
+}
+
+.community-card-marker span {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #374151;
+  font-size: 10px;
+  line-height: 1.1;
+  font-weight: 800;
+}
+
+.community-card-marker small {
+  display: inline-block;
+  width: fit-content;
+  margin-top: 2px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(20, 121, 232, 0.12);
+  color: #1479e8;
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 900;
+}
+
+@media (max-width: 700px) {
+  .community-card-marker {
+    width: 132px;
+    min-height: 52px;
+    padding: 7px 8px;
+    border-radius: 12px;
+  }
+
+  .community-card-marker strong {
+    font-size: 11px;
+  }
+
+  .community-card-marker span,
+  .community-card-marker small {
+    font-size: 9px;
+  }
+}
+
+/* 公寓群牌面搜索面板：点击牌面后先搜索号码，不自动展开全部 */
+.community-search-panel {
+  position: absolute;
+  z-index: 3300;
+  left: 12px;
+  right: 12px;
+  bottom: calc(18px + env(safe-area-inset-bottom));
+  display: none;
+  padding: 12px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
+}
+
+.community-search-panel.is-open {
+  display: block;
+}
+
+.community-search-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.community-search-header strong {
+  display: block;
+  color: #111827;
+  font-size: 17px;
+  font-weight: 900;
+}
+
+.community-search-header span {
+  display: block;
+  margin-top: 3px;
+  color: #6b7280;
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+#closeCommunitySearchPanel {
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 24px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.community-search-row {
+  display: grid;
+  grid-template-columns: 1fr 76px;
+  gap: 8px;
+}
+
+#communityNumberSearchInput {
+  min-width: 0;
+  min-height: 48px;
+  border: 2px solid rgba(20, 121, 232, 0.24);
+  border-radius: 12px;
+  padding: 8px 11px;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.25;
+  outline: none;
+  resize: vertical;
+}
+
+#communityNumberSearchInput:focus {
+  border-color: #1479e8;
+}
+
+#confirmCommunityNumberSearch,
+.community-search-actions button {
+  border: 0;
+  border-radius: 12px;
+  color: #fff;
+  font-weight: 900;
+}
+
+#confirmCommunityNumberSearch {
+  background: #16a34a;
+}
+
+.community-search-keypad,
+.community-search-actions {
+  display: grid;
+  gap: 8px;
+  margin-top: 9px;
+}
+
+.community-search-keypad {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.community-search-actions {
+  grid-template-columns: 1fr 1fr;
+}
+
+.community-search-keypad button {
+  min-height: 38px;
+  border: 0;
+  border-radius: 10px;
+  background: #e5e7eb;
+  color: #111827;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+#showAllCommunityNumbers {
+  min-height: 36px;
+  background: #f59e0b;
+}
+
+#showCommunityBuildingsOnly {
+  min-height: 36px;
+  background: #1479e8;
+}
+
+@media (max-width: 700px) {
+  .community-search-panel {
+    left: 6px !important;
+    right: 6px !important;
+    bottom: calc(6px + env(safe-area-inset-bottom)) !important;
+    padding: 8px !important;
+    border-radius: 14px !important;
+  }
+
+  .community-search-header {
+    gap: 8px !important;
+    margin-bottom: 7px !important;
+  }
+
+  .community-search-header strong {
+    font-size: 14px !important;
+  }
+
+  .community-search-header span {
+    font-size: 10px !important;
+  }
+
+  #closeCommunitySearchPanel {
+    width: 28px !important;
+    height: 28px !important;
+    font-size: 20px !important;
+  }
+
+  .community-search-row {
+    grid-template-columns: 1fr 62px !important;
+    gap: 5px !important;
+  }
+
+  #communityNumberSearchInput {
+    min-height: 42px !important;
+    border-radius: 10px !important;
+    font-size: 12px !important;
+    padding: 6px 8px !important;
+  }
+
+  #confirmCommunityNumberSearch,
+  .community-search-actions button {
+    border-radius: 9px !important;
+    font-size: 11px !important;
+  }
+
+  .community-search-keypad,
+  .community-search-actions {
+    gap: 5px !important;
+    margin-top: 6px !important;
+  }
+
+  .community-search-keypad {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
+
+  .community-search-keypad button {
+    min-height: 34px !important;
+    border-radius: 8px !important;
+    font-size: 13px !important;
+    padding: 0 2px !important;
+  }
+
+  #showAllCommunityNumbers,
+  #showCommunityBuildingsOnly {
+    min-height: 30px !important;
+  }
+}
+
+/* Mobile no-horizontal-scroll fix: keep every panel inside the visible screen */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+.app {
+  width: 100vw;
+  max-width: 100vw;
+  overflow-x: hidden !important;
+}
+
+@media (max-width: 700px) {
+  .community-bar,
+  .settings-panel,
+  .number-pad,
+  .building-panel,
+  .community-search-panel {
+    max-width: calc(100vw - 12px) !important;
+    overflow-x: hidden !important;
+  }
+
+  /* Top apartment selector: wrap controls instead of pushing past the right edge */
+  .community-bar {
+    left: 6px !important;
+    right: 56px !important;
+    width: auto !important;
+    max-width: none !important;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 30px 72px 34px 34px !important;
+    gap: 3px !important;
+    padding: 4px !important;
+  }
+
+  .community-bar input.community-combobox,
+  .community-bar select,
+  .community-bar button {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+  }
+
+  .community-bar input.community-combobox {
+    font-size: 11px !important;
+    padding: 0 5px !important;
+  }
+
+  
+.community-bar .community-dropdown-btn {
+  min-width: 34px;
+  width: 34px;
+  padding: 0;
+  font-size: 13px;
+  line-height: 1;
+  background: #16a34a;
+}
+
+.community-bar #communityTypeSelect {
+    min-width: 0 !important;
+    max-width: none !important;
+    font-size: 10px !important;
+    padding: 0 3px !important;
+  }
+
+  .community-bar button {
+    min-width: 0 !important;
+    padding: 0 2px !important;
+    font-size: 10px !important;
+  }
+
+  /* Search panel: all buttons stay inside the screen */
+  .community-search-panel {
+    left: 6px !important;
+    right: 6px !important;
+    width: auto !important;
+    max-height: 48vh !important;
+    overflow-y: auto !important;
+  }
+
+  .community-search-row {
+    grid-template-columns: minmax(0, 1fr) 54px !important;
+  }
+
+  #communityNumberSearchInput {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  .community-search-keypad {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+
+  .community-search-keypad button {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+
+  .community-search-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .community-search-actions button {
+    min-width: 0 !important;
+    width: 100% !important;
+    padding: 0 3px !important;
+    white-space: normal !important;
+    line-height: 1.05 !important;
+  }
+
+  /* Bottom building/number panel: prevent floor columns from creating page-level horizontal scroll */
+  .building-panel {
+    left: 6px !important;
+    right: 6px !important;
+    width: auto !important;
+    max-width: none !important;
+    overflow-x: hidden !important;
+  }
+
+  .position-list {
+    max-width: 100% !important;
+    overflow-x: hidden !important;
+  }
+
+  .position-list.group-floor-layout {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 3px !important;
+    overflow-x: hidden !important;
+  }
+
+  .floor-column {
+    flex: none !important;
+    min-width: 0 !important;
+    width: 100% !important;
+    padding: 3px !important;
+  }
+
+  .floor-number-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .floor-number-grid .position-btn.group-full-position-btn,
+  .position-btn {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+
+  .building-panel-actions {
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  }
+
+  .building-panel-actions button {
+    min-width: 0 !important;
+    width: 100% !important;
+    padding: 0 2px !important;
+    white-space: normal !important;
+    line-height: 1.05 !important;
+  }
+}
+
+/* Fix: mobile tap zoom + desktop keyboard-only input */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+@media (max-width: 700px) {
+  /* iPhone/Safari 会在小于 16px 的输入框聚焦时自动放大页面；这里强制输入控件不低于 16px。 */
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+
+  #communityNumberSearchInput {
+    font-size: 16px !important;
+    line-height: 1.22 !important;
+    max-height: 72px !important;
+    resize: none !important;
+  }
+
+  .community-search-panel,
+  .number-pad {
+    max-width: calc(100dvw - 12px) !important;
+    overflow-x: hidden !important;
+  }
+
+  .number-pad {
+    width: calc(100dvw - 24px) !important;
+    left: 12px !important;
+    right: 12px !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+  }
+}
+
+@media (min-width: 701px) {
+  /* 电脑端直接用实体键盘输入，不显示占屏幕的阿拉伯数字键盘。 */
+  .community-search-keypad,
+  .number-pad .pad-grid {
+    display: none !important;
+  }
+
+  .number-pad {
+    width: min(360px, calc(100vw - 48px)) !important;
+  }
+
+  .number-display {
+    min-height: 42px !important;
+    font-size: 20px !important;
+  }
+}
+
+/* Mobile number search input: use the in-page keypad only, so the phone system keyboard will not pop up. */
+@media (max-width: 700px) {
+  #communityNumberSearchInput[readonly] {
+    caret-color: transparent !important;
+    -webkit-user-select: none !important;
+    user-select: none !important;
+    cursor: default !important;
+    touch-action: manipulation !important;
+  }
+}
+
+/* Mobile anti double-tap zoom: keep all controls inside the screen without browser zoom */
+html,
+body,
+.app,
+button,
+input,
+select,
+textarea,
+.number-pad,
+.community-search-panel {
+  touch-action: manipulation;
+}
+
+@media (max-width: 700px) {
+  html, body {
+    -webkit-text-size-adjust: 100%;
+    overscroll-behavior: none;
+  }
+
+  button,
+  input,
+  select,
+  textarea,
+  .numBtn,
+  .tool-btn,
+  .round-nav,
+  .community-search-panel button {
+    touch-action: manipulation !important;
+  }
+}
+
+
+/* Fix mobile address search dropdown: keep it tappable and visible outside the top bar. */
+.community-bar {
+  overflow: visible !important;
+}
+
+.community-suggestion-panel {
+  z-index: 5000 !important;
+  pointer-events: auto !important;
+}
+
+.community-bar input.community-combobox {
+  position: relative;
+  z-index: 5001;
+  pointer-events: auto !important;
+}
+
+@media (max-width: 700px) {
+  .community-bar {
+    overflow: visible !important;
+  }
+
+  .community-bar input.community-combobox {
+    min-height: 32px !important;
+    font-size: 16px !important;
+  }
+
+  .community-suggestion-panel {
+    top: calc(100% + 6px) !important;
+    left: 0 !important;
+    right: 0 !important;
+    max-height: 38vh !important;
+  }
+}
+
+/* Stable mobile address suggestions: use a fixed overlay, not a child dropdown of the top bar.
+   This prevents Leaflet/map touch events, focus changes, and top-bar layout from making it disappear. */
+.community-suggestion-panel {
+  position: fixed !important;
+  top: var(--community-suggestion-top, 54px) !important;
+  left: var(--community-suggestion-left, 8px) !important;
+  right: auto !important;
+  width: var(--community-suggestion-width, min(320px, calc(100vw - 16px))) !important;
+  max-width: calc(100vw - 12px) !important;
+  z-index: 9000 !important;
+  pointer-events: auto !important;
+  overscroll-behavior: contain !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
+.community-suggestion-panel.is-open {
+  display: grid !important;
+}
+
+@media (max-width: 700px) {
+  .community-suggestion-panel {
+    max-height: 45vh !important;
+    padding: 6px !important;
+  }
+
+  .community-suggestion-item {
+    min-height: 42px !important;
+    touch-action: manipulation !important;
+  }
+}
+
+/* Split mobile address search controls: input opens keyboard, green arrow opens nearby dropdown. */
+.community-bar .community-dropdown-btn {
+  position: relative;
+  z-index: 5001;
+  touch-action: manipulation !important;
+}
+
+@media (max-width: 700px) {
+  .community-bar input.community-combobox {
+    font-size: 16px !important;
+  }
+}
+
+/* Mobile delivery/edit mode split */
+.mobile-mode-panel {
+  position: absolute;
+  z-index: 4200;
+  top: max(66px, calc(env(safe-area-inset-top) + 66px));
+  right: 8px;
+  width: min(260px, calc(100vw - 16px));
+  display: none;
+  padding: 10px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 12px 30px rgba(0,0,0,0.28);
+}
+
+.mobile-mode-panel.is-open {
+  display: block;
+}
+
+.mobile-mode-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.mobile-mode-header strong {
+  font-size: 15px;
+  font-weight: 950;
+  color: #111827;
+}
+
+#closeMobileModePanel {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 20px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.mobile-mode-status {
+  margin-bottom: 8px;
+  padding: 7px 9px;
+  border-radius: 10px;
+  background: #f3f4f6;
+  color: #111827;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.mobile-mode-panel button:not(#closeMobileModePanel) {
+  width: 100%;
+  min-height: 34px;
+  margin-top: 7px;
+  border: 0;
+  border-radius: 11px;
+  background: #374151;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.mobile-mode-panel .mobile-mode-primary {
+  background: #16a34a !important;
+}
+
+body.mobile-edit-mode .mobile-mode-panel .mobile-mode-primary {
+  background: #dc2626 !important;
+}
+
+.mobile-mode-note {
+  margin: 9px 2px 0;
+  color: #6b7280;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.mobile-mode-panel .mobile-password-menu-btn,
+.mobile-mode-panel .mobile-photo-storage-btn {
+  background: #7c3aed !important;
+}
+
+body.mobile-delivery-mode .mobile-mode-panel .mobile-password-menu-btn {
+  background: #6b7280 !important;
+  opacity: 0.72;
+}
+
+.community-password-panel {
+  position: absolute;
+  z-index: 4300;
+  top: max(66px, calc(env(safe-area-inset-top) + 66px));
+  right: 8px;
+  width: min(282px, calc(100vw - 16px));
+  display: none;
+  padding: 12px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 14px 34px rgba(0,0,0,0.3);
+  color: #111827;
+}
+
+.community-password-panel.is-open {
+  display: block;
+}
+
+.community-password-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.community-password-header strong {
+  display: block;
+  font-size: 16px;
+  font-weight: 1000;
+  line-height: 1.15;
+}
+
+.community-password-header span {
+  display: block;
+  max-width: 190px;
+  margin-top: 3px;
+  overflow: hidden;
+  color: #6b7280;
+  font-size: 11px;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#closeCommunityPasswordPanel {
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 21px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.community-password-field {
+  display: block;
+  margin-top: 10px;
+}
+
+.community-password-field span {
+  display: block;
+  margin-bottom: 5px;
+  color: #374151;
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.community-password-field input {
+  width: 100%;
+  min-height: 40px;
+  padding: 0 11px;
+  border: 1px solid rgba(124, 58, 237, 0.22);
+  border-radius: 12px;
+  background: #f9fafb;
+  color: #111827;
+  font-size: 16px;
+  font-weight: 950;
+  outline: none;
+}
+
+.community-password-field input:focus {
+  border-color: #7c3aed;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.13);
+}
+
+.community-password-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.community-password-actions button {
+  min-height: 36px;
+  border: 0;
+  border-radius: 12px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 1000;
+}
+
+#saveCommunityPasswordBtn {
+  background: #16a34a;
+}
+
+#cancelCommunityPasswordBtn {
+  background: #6b7280;
+}
+
+.community-password-note {
+  margin: 9px 2px 0;
+  color: #6b7280;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.mobile-advanced-actions {
+  margin-top: 7px;
+}
+
+.mobile-advanced-actions summary {
+  width: 100%;
+  min-height: 34px;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  background: #111827;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+  list-style: none;
+}
+
+.mobile-advanced-actions summary::-webkit-details-marker {
+  display: none;
+}
+
+.mobile-advanced-actions summary::after {
+  content: "展开";
+  margin-left: 6px;
+  font-size: 10px;
+  opacity: 0.82;
+}
+
+.mobile-advanced-actions[open] summary::after {
+  content: "收起";
+}
+
+@media (min-width: 701px) {
+  .mobile-mode-panel {
+    display: none !important;
+  }
+}
+
+@media (max-width: 700px) {
+  /* 默认手机端是送包裹模式：主界面只留搜索、下拉、定位、群、菜单。 */
+  body.mobile-delivery-mode #communityTypeSelect,
+  body.mobile-delivery-mode #addCommunityBtn,
+  body.mobile-delivery-mode #renameCommunityBtn,
+  body.mobile-delivery-mode #settingsBtn,
+  body.mobile-delivery-mode #undoBtn,
+  body.mobile-delivery-mode #addHereBtn,
+  body.mobile-delivery-mode #deleteSelectedPositions,
+  body.mobile-delivery-mode #bulkDeletePositions,
+  body.mobile-delivery-mode #applySettingsBtn,
+  body.mobile-delivery-mode #exportBtn,
+  body.mobile-delivery-mode .settings-panel label:not([for="importInput"]),
+  body.mobile-delivery-mode .settings-panel input[type="range"],
+  body.mobile-delivery-mode .settings-panel input[type="color"],
+  body.mobile-delivery-mode .settings-panel select {
+    display: none !important;
+  }
+
+  body.mobile-delivery-mode .community-bar {
+    grid-template-columns: minmax(0, 1fr) 36px !important;
+    right: 56px !important;
+  }
+
+  body.mobile-edit-mode .community-bar {
+    grid-template-columns: minmax(0, 1fr) 32px 72px 34px 34px !important;
+    right: 56px !important;
+  }
+
+  body.mobile-edit-mode #communityTypeSelect,
+  body.mobile-edit-mode #addCommunityBtn,
+  body.mobile-edit-mode #renameCommunityBtn {
+    display: block !important;
+  }
+
+  body.mobile-edit-mode #settingsBtn,
+  body.mobile-edit-mode #undoBtn,
+  body.mobile-edit-mode #addHereBtn {
+    display: grid !important;
+  }
+
+  body.mobile-edit-mode #communityTypeSelect {
+    min-width: 0 !important;
+    font-size: 9px !important;
+    padding: 0 2px !important;
+  }
+
+  body.mobile-edit-mode #addCommunityBtn,
+  body.mobile-edit-mode #renameCommunityBtn {
+    min-width: 0 !important;
+    font-size: 9px !important;
+    padding: 0 1px !important;
+  }
+
+  /* 编辑模式时给一个明显但不挡路的提示色。 */
+  body.mobile-edit-mode .community-bar {
+    border: 2px solid rgba(220, 38, 38, 0.35) !important;
+  }
+
+  body.mobile-edit-mode #menuBtn {
+    background: rgba(254, 226, 226, 0.98) !important;
+    color: #991b1b !important;
+  }
+
+  /* 送包裹模式下，设置面板只作为隐藏导入入口，不占用主界面。 */
+  body.mobile-delivery-mode .settings-panel {
+    max-height: 220px !important;
+  }
+}
+
+/* 万用号码输入表格 */
+.universal-number-panel {
+  position: absolute;
+  z-index: 3300;
+  left: 12px;
+  right: 12px;
+  bottom: calc(18px + env(safe-area-inset-bottom));
+  display: none;
+  padding: 12px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
+}
+
+.universal-number-panel.is-open {
+  display: block;
+}
+
+.universal-number-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.universal-number-header strong {
+  display: block;
+  color: #111827;
+  font-size: 17px;
+  font-weight: 900;
+}
+
+.universal-number-header span {
+  display: block;
+  margin-top: 3px;
+  color: #6b7280;
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+#closeUniversalNumberPanel {
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 24px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.universal-number-table {
+  display: grid;
+  grid-template-columns: 0.75fr 0.75fr 1.5fr;
+  gap: 8px;
+}
+
+.universal-number-table label {
+  display: grid;
+  gap: 5px;
+  color: #111827;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.universal-number-table input {
+  width: 100%;
+  min-width: 0;
+  height: 42px;
+  border: 2px solid rgba(20, 121, 232, 0.22);
+  border-radius: 12px;
+  padding: 0 10px;
+  background: #fff;
+  color: #111827;
+  font-size: 15px;
+  font-weight: 900;
+  outline: none;
+}
+
+.universal-number-table input:focus {
+  border-color: #1479e8;
+  box-shadow: 0 0 0 2px rgba(20, 121, 232, 0.12);
+}
+
+.universal-preview {
+  margin-top: 9px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.universal-number-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.universal-number-actions button {
+  min-height: 38px;
+  border: 0;
+  border-radius: 12px;
+  color: #fff;
+  font-weight: 900;
+}
+
+#confirmUniversalNumber {
+  background: #16a34a;
+}
+
+#cancelUniversalNumber {
+  background: #64748b;
+}
+
+@media (max-width: 700px) {
+  .universal-number-panel {
+    left: 6px !important;
+    right: 6px !important;
+    bottom: calc(6px + env(safe-area-inset-bottom)) !important;
+    padding: 8px !important;
+    border-radius: 14px !important;
+  }
+
+  .universal-number-header {
+    gap: 8px !important;
+    margin-bottom: 7px !important;
+  }
+
+  .universal-number-header strong {
+    font-size: 14px !important;
+  }
+
+  .universal-number-header span {
+    font-size: 10px !important;
+  }
+
+  #closeUniversalNumberPanel {
+    width: 28px !important;
+    height: 28px !important;
+    font-size: 20px !important;
+  }
+
+  .universal-number-table {
+    grid-template-columns: 0.8fr 0.8fr 1.4fr !important;
+    gap: 5px !important;
+  }
+
+  .universal-number-table label {
+    font-size: 10px !important;
+    gap: 3px !important;
+  }
+
+  .universal-number-table input {
+    height: 36px !important;
+    border-radius: 10px !important;
+    font-size: 13px !important;
+    padding: 0 7px !important;
+  }
+
+  .universal-preview {
+    margin-top: 7px !important;
+    padding: 6px 8px !important;
+    border-radius: 10px !important;
+    font-size: 10px !important;
+  }
+
+  .universal-number-actions {
+    gap: 5px !important;
+    margin-top: 7px !important;
+  }
+
+  .universal-number-actions button {
+    min-height: 32px !important;
+    border-radius: 9px !important;
+    font-size: 11px !important;
+  }
+}
+
+/* 新版万用表格：移除旧编号模式下拉后的顶部栏修正 */
+@media (max-width: 700px) {
+  .community-bar {
+    grid-template-columns: minmax(0, 1fr) 32px 34px 34px !important;
+  }
+
+  body.mobile-delivery-mode .community-bar {
+    grid-template-columns: minmax(0, 1fr) 36px !important;
+  }
+
+  body.mobile-edit-mode .community-bar {
+    grid-template-columns: minmax(0, 1fr) 32px 34px 34px !important;
+  }
+
+  body.mobile-edit-mode #addCommunityBtn,
+  body.mobile-edit-mode #renameCommunityBtn {
+    display: block !important;
+  }
+
+  .universal-number-panel {
+    max-width: calc(100vw - 12px) !important;
+    overflow-x: hidden !important;
+  }
+}
+
+/* 云端自动同步状态：独立显示，不占用定位提示，也不改左上角当前公寓区域 */
+.cloud-sync-status {
+  position: absolute;
+  z-index: 1260;
+  left: 12px;
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  max-width: min(280px, calc(100vw - 96px));
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.82);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.25;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
+  pointer-events: none;
+  backdrop-filter: blur(8px);
+}
+
+.cloud-sync-status.success {
+  background: rgba(22, 101, 52, 0.88);
+  color: #ffffff;
+}
+
+.cloud-sync-status.warning {
+  background: rgba(180, 83, 9, 0.9);
+  color: #ffffff;
+}
+
+.cloud-sync-status.error {
+  background: rgba(153, 27, 27, 0.92);
+  color: #ffffff;
+}
+
+@media (max-width: 700px) {
+  .cloud-sync-status {
+    left: 10px;
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    max-width: calc(100vw - 86px);
+    padding: 6px 9px;
+    font-size: 11px;
+  }
+}
+
+
+/* 公寓号码搜索面板：手机端输入框在左，九宫格在右；只改这个面板的排版，不影响地图按钮。 */
+.community-search-main {
+  display: block;
+}
+
+@media (max-width: 700px) {
+  .community-search-main {
+    display: grid !important;
+    grid-template-columns: minmax(112px, 0.9fr) minmax(168px, 1.35fr) !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+    margin-top: 6px !important;
+  }
+
+  .community-search-main .community-search-row {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    grid-template-rows: minmax(132px, 1fr) 42px !important;
+    gap: 7px !important;
+    margin: 0 !important;
+    min-width: 0 !important;
+  }
+
+  .community-search-main #communityNumberSearchInput {
+    width: 100% !important;
+    min-height: 132px !important;
+    max-height: none !important;
+    height: 100% !important;
+    resize: none !important;
+  }
+
+  .community-search-main #confirmCommunityNumberSearch {
+    width: 100% !important;
+    min-height: 42px !important;
+    font-size: 14px !important;
+  }
+
+  .community-search-main .community-search-keypad {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    grid-auto-rows: 42px !important;
+    gap: 7px !important;
+    margin: 0 !important;
+    min-width: 0 !important;
+  }
+
+  .community-search-main .community-search-keypad button {
+    min-height: 42px !important;
+    width: 100% !important;
+    border-radius: 10px !important;
+    font-size: 18px !important;
+    padding: 0 2px !important;
+  }
+
+  .community-search-main .community-search-keypad button[data-search-insert=" "] {
+    font-size: 13px !important;
+  }
+
+  .community-search-actions {
+    margin-top: 9px !important;
+  }
+}
+
+@media (max-width: 360px) {
+  .community-search-main {
+    grid-template-columns: minmax(100px, 0.82fr) minmax(150px, 1.28fr) !important;
+    gap: 6px !important;
+  }
+
+  .community-search-main .community-search-row {
+    grid-template-rows: minmax(120px, 1fr) 38px !important;
+    gap: 6px !important;
+  }
+
+  .community-search-main #communityNumberSearchInput {
+    min-height: 120px !important;
+  }
+
+  .community-search-main #confirmCommunityNumberSearch {
+    min-height: 38px !important;
+  }
+
+  .community-search-main .community-search-keypad {
+    grid-auto-rows: 38px !important;
+    gap: 6px !important;
+  }
+
+  .community-search-main .community-search-keypad button {
+    min-height: 38px !important;
+    font-size: 16px !important;
+  }
+}
+
+
+/* v6：公寓号码搜索面板改为左侧竖向表格式输入 + 右侧加大九宫格，仅作用于本面板 */
+.community-search-sheet,
+.community-search-keypad-wrap {
+  min-width: 0;
+}
+
+.community-search-keypad-wrap {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+
+.community-search-sheet {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  border: 1.5px solid rgba(20, 121, 232, 0.68);
+  border-radius: 14px;
+  overflow: hidden;
+  background: #ffffff;
+  min-height: 320px;
+}
+
+.community-search-line-numbers {
+  display: grid;
+  grid-template-rows: repeat(10, minmax(0, 1fr));
+  background: #fafafa;
+  border-right: 1px solid rgba(148, 163, 184, 0.35);
+}
+
+.community-search-line-numbers span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  color: #8b9099;
+  font-size: 16px;
+  font-weight: 700;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.28);
+}
+
+.community-search-line-numbers span:last-child {
+  border-bottom: 0;
+}
+
+.community-search-input-shell {
+  position: relative;
+  min-width: 0;
+}
+
+.community-search-input-shell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: linear-gradient(to bottom, rgba(148, 163, 184, 0.28) 1px, transparent 1px);
+  background-size: 100% 44px;
+  background-position: 0 43px;
+}
+
+.community-search-main #communityNumberSearchInput {
+  min-width: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 320px !important;
+  max-height: none !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  resize: none !important;
+  background: transparent !important;
+  padding: 0 14px !important;
+  color: #111827;
+  font-size: 18px !important;
+  font-weight: 800;
+  line-height: 44px !important;
+  letter-spacing: 0.2px;
+  outline: none;
+  white-space: pre-wrap;
+  overflow-y: auto;
+}
+
+.community-search-main #communityNumberSearchInput::placeholder {
+  color: rgba(107, 114, 128, 0.72);
+  font-weight: 700;
+}
+
+.community-search-main {
+  display: grid !important;
+  grid-template-columns: minmax(138px, 1fr) minmax(186px, 1.18fr) !important;
+  gap: 10px !important;
+  align-items: stretch !important;
+  margin-top: 6px !important;
+}
+
+.community-search-main .community-search-keypad {
+  margin: 0 !important;
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  grid-auto-rows: minmax(68px, auto) !important;
+  gap: 10px !important;
+}
+
+.community-search-main .community-search-keypad button {
+  min-height: 68px !important;
+  width: 100% !important;
+  border-radius: 14px !important;
+  background: #ffffff !important;
+  border: 1px solid rgba(203, 213, 225, 0.82) !important;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+  color: #111827 !important;
+  font-size: 25px !important;
+  font-weight: 900 !important;
+  padding: 0 4px !important;
+}
+
+.community-search-main .community-search-keypad .search-next-line-btn,
+.community-search-main .community-search-keypad .search-backspace-btn {
+  font-size: 17px !important;
+}
+
+.community-search-main #confirmCommunityNumberSearch {
+  width: 100% !important;
+  min-height: 72px !important;
+  border: 0 !important;
+  border-radius: 16px !important;
+  background: linear-gradient(180deg, #2a73ff 0%, #1660f0 100%) !important;
+  color: #ffffff !important;
+  font-size: 28px !important;
+  font-weight: 900 !important;
+  letter-spacing: 1px;
+  box-shadow: 0 10px 24px rgba(37, 99, 235, 0.24);
+}
+
+@media (max-width: 700px) {
+  .community-search-panel {
+    max-height: min(72vh, 760px) !important;
+    overflow-y: auto !important;
+  }
+
+  .community-search-header {
+    margin-bottom: 8px !important;
+  }
+
+  .community-search-header strong {
+    font-size: 15px !important;
+  }
+
+  .community-search-header span {
+    font-size: 11px !important;
+  }
+
+  .community-search-main {
+    grid-template-columns: minmax(128px, 0.94fr) minmax(194px, 1.24fr) !important;
+    gap: 10px !important;
+  }
+
+  .community-search-sheet {
+    min-height: 452px !important;
+    grid-template-columns: 42px minmax(0, 1fr) !important;
+    border-radius: 13px !important;
+  }
+
+  .community-search-line-numbers span {
+    font-size: 14px !important;
+  }
+
+  .community-search-input-shell::before {
+    background-size: 100% 40px;
+    background-position: 0 39px;
+  }
+
+  .community-search-main #communityNumberSearchInput {
+    min-height: 400px !important;
+    padding: 0 12px !important;
+    font-size: 20px !important;
+    line-height: 40px !important;
+  }
+
+  .community-search-keypad-wrap {
+    gap: 10px !important;
+  }
+
+  .community-search-main .community-search-keypad {
+    grid-auto-rows: 82px !important;
+    gap: 10px !important;
+  }
+
+  .community-search-main .community-search-keypad button {
+    min-height: 82px !important;
+    border-radius: 14px !important;
+    font-size: 29px !important;
+  }
+
+  .community-search-main .community-search-keypad .search-next-line-btn,
+  .community-search-main .community-search-keypad .search-backspace-btn {
+    font-size: 18px !important;
+  }
+
+  .community-search-main #confirmCommunityNumberSearch {
+    min-height: 76px !important;
+    font-size: 30px !important;
+    border-radius: 16px !important;
+  }
+
+  .community-search-actions {
+    margin-top: 10px !important;
+  }
+
+  .community-search-actions button {
+    min-height: 40px !important;
+  }
+}
+
+@media (max-width: 390px) {
+  .community-search-main {
+    grid-template-columns: minmax(118px, 0.9fr) minmax(178px, 1.18fr) !important;
+    gap: 8px !important;
+  }
+
+  .community-search-sheet {
+    min-height: 416px !important;
+  }
+
+  .community-search-main #communityNumberSearchInput {
+    min-height: 364px !important;
+    font-size: 18px !important;
+    line-height: 38px !important;
+  }
+
+  .community-search-input-shell::before {
+    background-size: 100% 38px;
+    background-position: 0 37px;
+  }
+
+  .community-search-main .community-search-keypad {
+    grid-auto-rows: 74px !important;
+    gap: 8px !important;
+  }
+
+  .community-search-main .community-search-keypad button {
+    min-height: 74px !important;
+    font-size: 25px !important;
+  }
+
+  .community-search-main .community-search-keypad .search-next-line-btn,
+  .community-search-main .community-search-keypad .search-backspace-btn {
+    font-size: 16px !important;
+  }
+
+  .community-search-main #confirmCommunityNumberSearch {
+    min-height: 68px !important;
+    font-size: 26px !important;
+  }
+}
+
+
+/* v9：修正手机端左侧表格 10 行与输入横线不对齐的问题。 */
+.community-search-sheet {
+  --community-search-row-height: 44px;
+  min-height: auto !important;
+  height: calc(var(--community-search-row-height) * 10 + 2px) !important;
+  align-items: stretch;
+}
+
+.community-search-line-numbers {
+  grid-template-rows: repeat(10, var(--community-search-row-height)) !important;
+}
+
+.community-search-line-numbers span {
+  height: var(--community-search-row-height);
+  line-height: var(--community-search-row-height);
+  box-sizing: border-box;
+}
+
+.community-search-input-shell {
+  height: calc(var(--community-search-row-height) * 10) !important;
+}
+
+.community-search-input-shell::before {
+  background-size: 100% var(--community-search-row-height) !important;
+  background-position: 0 calc(var(--community-search-row-height) - 1px) !important;
+}
+
+.community-search-main #communityNumberSearchInput {
+  min-height: auto !important;
+  height: calc(var(--community-search-row-height) * 10) !important;
+  line-height: var(--community-search-row-height) !important;
+  box-sizing: border-box;
+}
+
+@media (max-width: 700px) {
+  .community-search-sheet {
+    --community-search-row-height: 40px;
+    min-height: auto !important;
+    height: calc(var(--community-search-row-height) * 10 + 2px) !important;
+  }
+
+  .community-search-input-shell {
+    height: calc(var(--community-search-row-height) * 10) !important;
+  }
+
+  .community-search-main #communityNumberSearchInput {
+    min-height: auto !important;
+    height: calc(var(--community-search-row-height) * 10) !important;
+    line-height: var(--community-search-row-height) !important;
+  }
+}
+
+@media (max-width: 390px) {
+  .community-search-sheet {
+    --community-search-row-height: 38px;
+    min-height: auto !important;
+    height: calc(var(--community-search-row-height) * 10 + 2px) !important;
+  }
+
+  .community-search-input-shell {
+    height: calc(var(--community-search-row-height) * 10) !important;
+  }
+
+  .community-search-main #communityNumberSearchInput {
+    min-height: auto !important;
+    height: calc(var(--community-search-row-height) * 10) !important;
+    line-height: var(--community-search-row-height) !important;
+  }
+}
+
+/* 手机端：本次送货号码清单 / 已送达隐藏清单 */
+.delivery-route-panel,
+.delivery-toast {
+  display: none;
+}
+
+@media (max-width: 700px) {
+  .delivery-route-panel.is-visible {
+    position: absolute;
+    z-index: 1580;
+    top: calc(58px + env(safe-area-inset-top));
+    left: 6px;
+    width: min(270px, calc(100vw - 86px));
+    display: block;
+    pointer-events: auto;
+  }
+
+  .delivery-route-section {
+    margin-bottom: 6px;
+  }
+
+  .delivery-route-toggle {
+    min-width: 0;
+    max-width: 100%;
+    min-height: 38px;
+    display: inline-grid;
+    grid-template-columns: minmax(0, auto) 22px 16px;
+    align-items: center;
+    gap: 6px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.96);
+    color: #111827;
+    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.16);
+    backdrop-filter: blur(10px);
+    font-size: 14px;
+    font-weight: 950;
+    line-height: 1;
+  }
+
+  .delivery-route-toggle strong {
+    min-width: 22px;
+    height: 22px;
+    border-radius: 999px;
+    display: grid;
+    place-items: center;
+    background: #1479e8;
+    color: #fff;
+    font-size: 12px;
+    font-style: normal;
+  }
+
+  .delivery-route-toggle em {
+    font-style: normal;
+    font-size: 15px;
+    font-weight: 1000;
+  }
+
+  .delivery-route-toggle.is-open {
+    background: rgba(255, 255, 255, 0.98);
+    color: #0f172a;
+  }
+
+  .delivery-password-card[hidden] {
+    display: none !important;
+  }
+
+  .delivery-password-card {
+    width: 100%;
+    margin: 0 0 8px;
+    display: grid;
+    gap: 5px;
+    padding: 8px;
+    border: 1px solid rgba(124, 58, 237, 0.16);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.98);
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.15);
+    backdrop-filter: blur(12px);
+  }
+
+  .delivery-password-row {
+    min-height: 30px;
+    display: grid;
+    grid-template-columns: 54px 1fr;
+    align-items: center;
+    gap: 7px;
+  }
+
+  .delivery-password-row span {
+    color: #6b7280;
+    font-size: 12px;
+    font-weight: 1000;
+    white-space: nowrap;
+  }
+
+  .delivery-password-row strong {
+    min-width: 0;
+    padding: 6px 9px;
+    border-radius: 10px;
+    background: #f3e8ff;
+    color: #4c1d95;
+    font-size: 15px;
+    font-weight: 1000;
+    letter-spacing: 0.02em;
+    overflow-wrap: anywhere;
+  }
+
+  .delivery-route-card {
+    display: none;
+    width: 100%;
+    max-height: min(42vh, 320px);
+    margin-top: 6px;
+    overflow: auto;
+    padding: 10px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.98);
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.2);
+    backdrop-filter: blur(12px);
+  }
+
+  .delivery-route-card.is-open {
+    display: block;
+  }
+
+  .delivery-route-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+
+  .delivery-route-card-header strong {
+    color: #111827;
+    font-size: 15px;
+    font-weight: 1000;
+  }
+
+  .delivery-route-card-header button {
+    min-height: 30px;
+    border: 0;
+    border-radius: 999px;
+    padding: 0 10px;
+    background: #1479e8;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 950;
+    white-space: nowrap;
+  }
+
+  .delivery-route-card-note {
+    color: #16a34a;
+    font-size: 12px;
+    font-weight: 900;
+  }
+
+  .delivery-route-list {
+    display: grid;
+    gap: 7px;
+  }
+
+  .delivery-route-divider {
+    height: 1px;
+    margin: 10px 0 8px;
+    background: rgba(15, 23, 42, 0.1);
+  }
+
+  .delivery-route-delivered-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    color: #374151;
+    font-size: 13px;
+    font-weight: 950;
+  }
+
+  .delivery-route-delivered-title span {
+    color: #6b7280;
+    font-size: 11px;
+    font-weight: 800;
+  }
+
+  .delivery-route-row {
+    min-height: 46px;
+    display: grid;
+    grid-template-columns: 46px 1fr 42px;
+    align-items: center;
+    gap: 6px;
+    padding: 6px;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    border-radius: 12px;
+    background: #fff;
+  }
+
+  .delivery-route-chip {
+    min-width: 36px;
+    height: 36px;
+    border: 0;
+    border-radius: 999px;
+    display: grid;
+    place-items: center;
+    padding: 0 9px;
+    background: #1479e8;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 950;
+    box-shadow: 0 2px 7px rgba(20, 121, 232, 0.32);
+  }
+
+  .delivery-route-row.is-delivered .delivery-route-chip {
+    background: #6b7280;
+    box-shadow: none;
+  }
+
+  .delivery-route-action,
+  .delivery-route-locate {
+    min-width: 0;
+    min-height: 32px;
+    border: 0;
+    border-radius: 10px;
+    padding: 0 8px;
+    font-size: 12px;
+    font-weight: 950;
+    white-space: nowrap;
+  }
+
+  .delivery-route-action {
+    justify-self: end;
+    color: #16a34a;
+    background: rgba(22, 163, 74, 0.1);
+  }
+
+  .delivery-route-row.is-delivered .delivery-route-action {
+    color: #1479e8;
+    background: rgba(20, 121, 232, 0.1);
+  }
+
+  .delivery-route-locate {
+    color: #374151;
+    background: #f3f4f6;
+  }
+
+  .delivery-route-empty {
+    padding: 12px 8px;
+    border-radius: 12px;
+    background: #f8fafc;
+    color: #64748b;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 900;
+  }
+
+  .delivery-action-popup-shell .leaflet-popup-content-wrapper {
+    border-radius: 14px;
+    box-shadow: 0 8px 22px rgba(15, 23, 42, 0.22);
+  }
+
+  .delivery-action-popup-shell .leaflet-popup-content {
+    margin: 0;
+  }
+
+  .delivery-action-popup {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    min-width: 150px;
+    overflow: hidden;
+    border-radius: 14px;
+    background: #fff;
+  }
+
+  .delivery-action-popup button {
+    min-height: 46px;
+    border: 0;
+    background: #fff;
+    font-size: 15px;
+    font-weight: 950;
+  }
+
+  .delivery-action-popup button + button {
+    border-left: 1px solid rgba(15, 23, 42, 0.1);
+  }
+
+  .delivery-action-delivered {
+    color: #16a34a;
+  }
+
+  .delivery-action-cancel {
+    color: #374151;
+  }
+
+  .delivery-toast.is-open {
+    position: absolute;
+    z-index: 3300;
+    left: 50%;
+    bottom: calc(76px + env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    width: min(330px, calc(100vw - 28px));
+    min-height: 48px;
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px 8px 14px;
+    border-radius: 14px;
+    background: rgba(17, 24, 39, 0.94);
+    color: #fff;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
+    backdrop-filter: blur(12px);
+    font-size: 14px;
+    font-weight: 900;
+  }
+
+  .delivery-toast button {
+    min-height: 32px;
+    border: 0;
+    border-radius: 10px;
+    padding: 0 9px;
+    background: transparent;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 950;
+  }
+
+  #undoDeliveryHideBtn {
+    background: rgba(255, 255, 255, 0.14);
+  }
+
+  #closeDeliveryToastBtn {
+    width: 32px;
+    padding: 0;
+    font-size: 22px;
+    line-height: 1;
+  }
+}
+
+
+/* Desktop-only entry for the backend apartment-number master table. */
+.desktop-admin-table-link {
+  display: flex;
+  width: 100%;
+  min-height: 36px;
+  margin-top: 12px;
+  padding: 0 12px;
+  border-radius: 10px;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  background: #111827;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.desktop-admin-table-link:active {
+  transform: translateY(1px);
+}
+
+@media (max-width: 700px), (pointer: coarse) {
+  .desktop-admin-table-link {
+    display: none !important;
+  }
+}
+
+/* Follow mode visual state: only changes the compass button appearance. */
+#navButton.is-following {
+  background: #16a34a !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.22), 0 8px 20px rgba(22, 163, 74, 0.34) !important;
+}
+
+#navButton.is-following::before {
+  border-color: rgba(22, 163, 74, 0.72) !important;
+}
+
+#navButton.is-following:active {
+  filter: brightness(0.96);
+}
+
+/* 大楼照片：添加入口、缩略图角标和全屏查看 */
+#addBuildingPhotoBtn {
+  background: #1479e8;
+}
+
+.number-marker {
+  position: relative;
+  overflow: visible;
+}
+
+.number-photo-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid #fff;
+  border-radius: 4px;
+  object-fit: cover;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.34);
+  pointer-events: none;
+}
+
+.building-photo-viewer {
+  position: absolute;
+  z-index: 4200;
+  inset: 0;
+  display: none;
+  background: rgba(15, 23, 42, 0.96);
+  color: #fff;
+}
+
+.building-photo-viewer.is-open {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+}
+
+.building-photo-viewer.is-photo-only {
+  background: #000;
+  grid-template-rows: 1fr;
+  inset: 0;
+}
+
+html.photo-viewer-immersive .building-photo-viewer.is-photo-only {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100dvh;
+  min-height: 100dvh;
+  padding-top: 0;
+  margin-top: 0;
+  z-index: 99999;
+}
+
+.building-photo-viewer.is-photo-only .building-photo-viewer-head,
+.building-photo-viewer.is-photo-only .building-photo-viewer-actions {
+  display: none;
+}
+
+.building-photo-viewer-head {
+  min-height: 56px;
+  padding: max(12px, env(safe-area-inset-top)) 14px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.building-photo-viewer-head strong {
+  font-size: 18px;
+  font-weight: 1000;
+}
+
+#closeBuildingPhotoViewer {
+  width: 38px;
+  height: 38px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  font-size: 28px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.building-photo-viewer-body {
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  cursor: pointer;
+  touch-action: none;
+}
+
+html.photo-viewer-immersive .building-photo-viewer.is-photo-only .building-photo-viewer-body {
+  width: 100vw;
+  height: 100dvh;
+  min-height: 100dvh;
+}
+
+#buildingPhotoViewerImage {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000;
+  transform-origin: center center;
+  transition: transform 0.18s ease;
+  will-change: transform;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-user-drag: none;
+}
+
+.building-photo-viewer.is-photo-only #buildingPhotoViewerImage {
+  width: 100%;
+  height: 100%;
+}
+
+html.photo-viewer-immersive .building-photo-viewer.is-photo-only #buildingPhotoViewerImage {
+  width: 100vw;
+  height: 100dvh;
+  max-width: 100vw;
+  max-height: 100dvh;
+}
+
+.building-photo-viewer-actions {
+  padding: 10px 14px calc(14px + env(safe-area-inset-bottom));
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.building-photo-cloud-size {
+  grid-column: 1 / -1;
+  min-height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.building-photo-viewer-actions button {
+  min-height: 42px;
+  border: 0;
+  border-radius: 14px;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 1000;
+}
+
+#replaceBuildingPhotoBtn {
+  background: #1479e8;
+}
+
+#deleteBuildingPhotoBtn {
+  background: #dc2626;
+}
+
+.building-photo-action-popup {
+  display: grid;
+  gap: 8px;
+  min-width: 158px;
+  padding: 8px;
+}
+
+.building-photo-action-title {
+  color: #111827;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 950;
+}
+
+.building-photo-action-popup button {
+  min-height: 34px;
+  border: 0;
+  border-radius: 10px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 950;
+}
+
+.building-photo-action-popup .photo-action-primary {
+  background: #1479e8;
+}
+
+.building-photo-action-popup .photo-action-secondary {
+  background: #16a34a;
+}
+
+.building-photo-action-popup .photo-action-cancel {
+  background: #6b7280;
+}
+
+@media (min-width: 701px) {
+  .building-panel-actions {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .building-photo-viewer {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    right: auto;
+    bottom: auto;
+    width: min(420px, calc(100vw - 40px));
+    height: min(760px, calc(100vh - 40px));
+    transform: translate(-50%, -50%);
+    border-radius: 24px;
+    overflow: hidden;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.42);
+  }
+}
+
+
+/* 照片容量统计：按云端文字形式估算 */
+.photo-storage-stats-panel {
+  position: absolute;
+  z-index: 4300;
+  left: 14px;
+  right: 14px;
+  bottom: calc(18px + env(safe-area-inset-bottom));
+  display: none;
+  padding: 14px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 18px 46px rgba(15, 23, 42, 0.28);
+  color: #111827;
+}
+
+.photo-storage-stats-panel.is-open {
+  display: block;
+}
+
+.photo-storage-stats-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.photo-storage-stats-header strong {
+  display: block;
+  font-size: 18px;
+  font-weight: 1000;
+}
+
+.photo-storage-stats-header span {
+  display: block;
+  margin-top: 3px;
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+#closePhotoStorageStatsPanel {
+  width: 36px;
+  min-height: 36px;
+  border: 0;
+  border-radius: 999px;
+  background: #111827;
+  color: #fff;
+  font-size: 22px;
+  font-weight: 1000;
+}
+
+.photo-storage-stats-content {
+  display: grid;
+  gap: 9px;
+}
+
+.photo-storage-stat-card {
+  padding: 11px 12px;
+  border: 1px solid rgba(124, 58, 237, 0.14);
+  border-radius: 14px;
+  background: #f8fafc;
+}
+
+.photo-storage-stat-card span {
+  display: block;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.photo-storage-stat-card strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 22px;
+  font-weight: 1000;
+}
+
+.photo-storage-stat-card em {
+  display: block;
+  margin-top: 4px;
+  color: #4c1d95;
+  font-style: normal;
+  font-size: 13px;
+  font-weight: 950;
+}
+
+.photo-storage-stat-card.is-soft {
+  background: #f5f3ff;
+}
+
+.photo-storage-stats-note {
+  margin: 10px 2px 0;
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+
+/* 完整云端资料提取工具：整合在原 APP 的高级设置中 */
+.cloud-export-btn {
+  margin-top: 10px;
+  border: 0;
+  background: #6d28d9;
+  color: #fff;
+  font-weight: 900;
+}
+
+.cloud-export-btn.secondary-cloud-export {
+  background: #166534;
+}
+
+.cloud-export-progress {
+  margin-top: 10px;
+  padding: 9px 10px;
+  border: 1px solid rgba(109, 40, 217, 0.18);
+  border-radius: 10px;
+  background: #f5f3ff;
+  color: #4c1d95;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.cloud-export-progress.is-working {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.cloud-export-progress.is-success {
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.cloud-export-progress.is-error {
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+
+/* 云端数据结构分析 */
+.structure-analysis-btn {
+  background: #0f766e;
+}
+
+.cloud-structure-summary {
+  margin-top: 10px;
+  max-height: 280px;
+  overflow: auto;
+  padding: 10px;
+  border: 1px solid rgba(15, 118, 110, 0.22);
+  border-radius: 10px;
+  background: #f0fdfa;
+  color: #134e4a;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.cloud-structure-summary strong {
+  font-weight: 950;
+}
+
+
+/* 本机历史数据检查 */
+.local-history-btn {
+  background: #7c2d12;
+}
+
+.local-history-download-btn {
+  background: #9a3412;
+}
+
+.local-history-status {
+  margin-top: 10px;
+  padding: 9px 10px;
+  border: 1px solid rgba(124, 45, 18, 0.22);
+  border-radius: 10px;
+  background: #fff7ed;
+  color: #7c2d12;
+  font-size: 12px;
+  font-weight: 850;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.local-history-status.is-working {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.local-history-status.is-success {
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.local-history-status.is-warning {
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.local-history-status.is-error {
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.local-history-results {
+  margin-top: 10px;
+  max-height: 320px;
+  overflow: auto;
+  border: 1px solid rgba(124, 45, 18, 0.18);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.local-history-item {
+  padding: 10px;
+  border-bottom: 1px solid #e5e7eb;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.local-history-item:last-child {
+  border-bottom: 0;
+}
+
+.local-history-item strong {
+  display: block;
+  color: #111827;
+  font-size: 13px;
+}
+
+.local-history-item span {
+  display: block;
+  margin-top: 3px;
+  color: #6b7280;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.local-history-item .local-history-counts {
+  color: #166534;
+  font-weight: 900;
+}
+
+
+/* ===== V2 路线与阶段备份 UI ===== */
+.delivery-route-header-actions{display:flex;gap:8px;align-items:center}
+#planV2RouteBtn{background:#1267d6;color:#fff;border:0;border-radius:10px;padding:8px 11px;font-weight:700}
+.v2-route-status-panel{position:fixed;left:50%;bottom:calc(112px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:980;width:min(92vw,520px);background:rgba(255,255,255,.96);border:1px solid rgba(0,0,0,.14);border-radius:14px;box-shadow:0 8px 28px rgba(0,0,0,.2);padding:10px 12px;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.v2-route-status-panel[hidden]{display:none}
+.v2-route-status-panel div{display:flex;flex-direction:column;gap:2px;min-width:0}
+.v2-route-status-panel span{font-size:12px;color:#555;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#clearV2RouteBtn{border:0;border-radius:9px;padding:8px 10px;background:#eceff4;font-weight:700}
+.v2-stage-backup-dialog{position:fixed;inset:0;z-index:5000;background:rgba(0,0,0,.48);display:grid;place-items:center;padding:20px}
+.v2-stage-backup-dialog>div{width:min(92vw,430px);background:#fff;border-radius:18px;padding:20px;box-shadow:0 18px 60px rgba(0,0,0,.28)}
+.v2-stage-backup-dialog h3{margin:0 0 8px}.v2-stage-backup-dialog p{line-height:1.55;color:#444}.v2-stage-backup-dialog footer{display:flex;justify-content:flex-end;gap:10px;margin-top:16px}.v2-stage-backup-dialog button{border:0;border-radius:10px;padding:10px 14px;font-weight:700}.v2-stage-backup-dialog .primary{background:#1267d6;color:#fff}
+@media(max-width:700px){.v2-route-status-panel{bottom:calc(96px + env(safe-area-inset-bottom));}.delivery-route-header-actions{gap:5px}#planV2RouteBtn,#addDeliveryRouteNumberBtn{padding:7px 8px!important;font-size:12px}}

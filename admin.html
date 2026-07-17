@@ -1,0 +1,1375 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>后台号码总表 · 寻包火地图导航</title>
+  <style>
+    :root {
+      --bg: #f5f3ff;
+      --paper: #ffffff;
+      --ink: #111827;
+      --muted: #6b7280;
+      --line: #e5e7eb;
+      --brand: #6d28d9;
+      --brand-dark: #4c1d95;
+      --danger: #dc2626;
+      --warning: #d97706;
+      --success: #16a34a;
+      --soft-danger: #fef2f2;
+      --soft-brand: #ede9fe;
+      --shadow: 0 16px 42px rgba(17, 24, 39, 0.12);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(124, 58, 237, 0.12), transparent 34vw),
+        linear-gradient(180deg, #fbfaff 0%, var(--bg) 100%);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    .page {
+      width: min(1500px, calc(100vw - 28px));
+      margin: 0 auto;
+      padding: 22px 0 52px;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 16px;
+      align-items: start;
+      padding: 20px;
+      border: 1px solid rgba(109, 40, 217, 0.14);
+      border-radius: 24px;
+      background: rgba(255, 255, 255, 0.84);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+    }
+
+    .hero h1 {
+      margin: 0;
+      font-size: clamp(26px, 4vw, 42px);
+      line-height: 1.05;
+      letter-spacing: -0.04em;
+    }
+
+    .hero p {
+      margin: 10px 0 0;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.55;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: flex-end;
+    }
+
+    button,
+    .link-btn {
+      min-height: 40px;
+      padding: 0 14px;
+      border: 0;
+      border-radius: 14px;
+      color: #fff;
+      background: var(--brand);
+      font: inherit;
+      font-weight: 900;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 8px 18px rgba(109, 40, 217, 0.18);
+    }
+
+    button.secondary,
+    .link-btn.secondary { background: #374151; }
+
+    button.ghost {
+      color: var(--brand-dark);
+      background: var(--soft-brand);
+      box-shadow: none;
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.56;
+      box-shadow: none;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(130px, 1fr));
+      gap: 12px;
+      margin: 16px 0;
+    }
+
+    .stat {
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: var(--paper);
+      box-shadow: 0 8px 22px rgba(17, 24, 39, 0.07);
+    }
+
+    .stat strong {
+      display: block;
+      font-size: 28px;
+      line-height: 1;
+    }
+
+    .stat span {
+      display: block;
+      margin-top: 7px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .controls {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      display: grid;
+      grid-template-columns: minmax(220px, 1fr) 190px 170px auto;
+      gap: 10px;
+      align-items: center;
+      padding: 12px;
+      border: 1px solid rgba(109, 40, 217, 0.12);
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.94);
+      box-shadow: 0 10px 26px rgba(17, 24, 39, 0.1);
+      backdrop-filter: blur(10px);
+    }
+
+    input,
+    select {
+      width: 100%;
+      min-height: 42px;
+      padding: 0 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 14px;
+      background: #fff;
+      color: var(--ink);
+      font: inherit;
+      font-weight: 700;
+    }
+
+    .view-tabs {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    .view-tabs button {
+      min-height: 38px;
+      padding: 0 12px;
+      border-radius: 12px;
+      box-shadow: none;
+      background: #e5e7eb;
+      color: #111827;
+    }
+
+    .view-tabs button.is-active {
+      background: var(--brand);
+      color: #fff;
+    }
+
+    .notice {
+      margin: 14px 0;
+      padding: 12px 14px;
+      border: 1px solid rgba(217, 119, 6, 0.25);
+      border-radius: 16px;
+      background: #fffbeb;
+      color: #78350f;
+      font-weight: 800;
+      line-height: 1.5;
+    }
+
+    .notice.ok {
+      border-color: rgba(22, 163, 74, 0.25);
+      background: #f0fdf4;
+      color: #14532d;
+    }
+
+    .notice.warning {
+      border-color: rgba(180, 83, 9, 0.28);
+      background: #fff7ed;
+      color: #9a3412;
+      font-weight: 900;
+    }
+
+    .section-title {
+      margin: 26px 2px 12px;
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 14px;
+    }
+
+    .section-title h2 {
+      margin: 0;
+      font-size: 22px;
+    }
+
+    .section-title span {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .cards {
+      display: grid;
+      gap: 20px;
+    }
+
+    .community-card {
+      overflow: hidden;
+      border: 1px solid rgba(17, 24, 39, 0.1);
+      border-radius: 24px;
+      background: var(--paper);
+      box-shadow: var(--shadow);
+      break-inside: avoid;
+    }
+
+    .community-card-head {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      align-items: center;
+      padding: 18px 20px;
+      color: #fff;
+      background: linear-gradient(135deg, var(--brand) 0%, #2563eb 100%);
+    }
+
+    .community-card-head h3 {
+      margin: 0;
+      font-size: 24px;
+      line-height: 1.15;
+    }
+
+    .community-card-head p {
+      margin: 6px 0 0;
+      font-size: 13px;
+      opacity: 0.9;
+      font-weight: 800;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 30px;
+      padding: 0 10px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.18);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .table-wrap {
+      overflow: auto;
+      max-height: 68vh;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #fff;
+      font-size: 14px;
+    }
+
+    th,
+    td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+      white-space: nowrap;
+    }
+
+    th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: #f9fafb;
+      color: #374151;
+      font-size: 12px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    td.wrap { white-space: normal; }
+
+    tr.duplicate-row td { background: var(--soft-danger); }
+    tr.duplicate-address-row td { background: #fff7ed; }
+
+    .dup-pill,
+    .ok-pill,
+    .address-pill,
+    .photo-pill {
+      display: inline-flex;
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .dup-pill { color: #991b1b; background: #fee2e2; }
+    .address-pill { color: #9a3412; background: #ffedd5; }
+    .ok-pill { color: #166534; background: #dcfce7; }
+    .photo-pill { color: #7c2d12; background: #fed7aa; }
+
+    button.photo-pill {
+      min-height: 0;
+      border: 0;
+      box-shadow: none;
+      cursor: pointer;
+    }
+
+    button.photo-pill:hover {
+      filter: brightness(0.97);
+    }
+
+    .photo-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 5000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 22px;
+      background: rgba(17, 24, 39, 0.68);
+    }
+
+    .photo-modal.is-open { display: flex; }
+
+    .photo-modal-card {
+      width: min(520px, calc(100vw - 28px));
+      max-height: calc(100vh - 44px);
+      overflow: hidden;
+      border-radius: 24px;
+      background: #111827;
+      color: #fff;
+      box-shadow: 0 24px 70px rgba(0, 0, 0, 0.38);
+      display: grid;
+      grid-template-rows: auto minmax(220px, 1fr) auto;
+    }
+
+    .photo-modal-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 16px;
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .photo-modal-head strong {
+      font-size: 17px;
+      font-weight: 1000;
+      line-height: 1.25;
+    }
+
+    .photo-modal-close {
+      width: 38px;
+      min-height: 38px;
+      padding: 0;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.14);
+      box-shadow: none;
+      font-size: 24px;
+      line-height: 1;
+    }
+
+    .photo-modal-body {
+      min-height: 280px;
+      background: #000;
+      display: grid;
+      place-items: center;
+    }
+
+    .photo-modal-body img {
+      width: 100%;
+      height: min(72vh, 760px);
+      object-fit: contain;
+      display: block;
+    }
+
+    .photo-modal-status {
+      padding: 26px;
+      color: rgba(255, 255, 255, 0.82);
+      text-align: center;
+      font-weight: 900;
+      line-height: 1.5;
+    }
+
+    .photo-modal-foot {
+      padding: 12px 16px;
+      background: rgba(255, 255, 255, 0.08);
+      color: rgba(255, 255, 255, 0.8);
+      font-size: 13px;
+      font-weight: 800;
+      line-height: 1.45;
+    }
+
+    .hidden { display: none !important; }
+
+    .empty {
+      padding: 32px;
+      border: 2px dashed #d8b4fe;
+      border-radius: 24px;
+      background: rgba(255, 255, 255, 0.72);
+      color: var(--muted);
+      text-align: center;
+      font-weight: 900;
+      line-height: 1.6;
+    }
+
+    .duplicate-groups { display: grid; gap: 14px; }
+
+    .duplicate-group {
+      overflow: hidden;
+      border: 1px solid rgba(220, 38, 38, 0.16);
+      border-radius: 20px;
+      background: #fff;
+      box-shadow: 0 10px 24px rgba(127, 29, 29, 0.08);
+    }
+
+    .duplicate-group h3 {
+      margin: 0;
+      padding: 14px 16px;
+      color: #7f1d1d;
+      background: #fee2e2;
+      font-size: 17px;
+    }
+
+    .duplicate-group.address h3 {
+      color: #9a3412;
+      background: #ffedd5;
+    }
+
+    .footer-note {
+      margin-top: 26px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+      text-align: center;
+    }
+
+    .desktop-only-warning { align-items: center; }
+
+    @media (max-width: 900px) {
+      .hero,
+      .controls { grid-template-columns: 1fr; }
+      .actions,
+      .view-tabs { justify-content: stretch; }
+      .actions > *,
+      .view-tabs button { flex: 1; }
+      .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+
+    @media (max-width: 560px) {
+      .page { width: calc(100vw - 16px); padding-top: 8px; }
+      .hero,
+      .stat,
+      .controls,
+      .community-card { border-radius: 16px; }
+      .stats { grid-template-columns: 1fr 1fr; }
+      .stat strong { font-size: 24px; }
+      th,
+      td { padding: 9px 8px; font-size: 13px; }
+    }
+
+    @media print {
+      body { background: #fff; }
+      .actions,
+      .controls,
+      .notice,
+      .footer-note { display: none !important; }
+      .page { width: 100%; padding: 0; }
+      .hero,
+      .stat,
+      .community-card,
+      .duplicate-group { box-shadow: none; }
+      .table-wrap { max-height: none; overflow: visible; }
+      th { position: static; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="hero">
+      <div>
+        <h1>后台号码总表</h1>
+        <p>这里不会修改地图数据，只负责把当前电脑浏览器或云端同步里的公寓、楼栋、号码整理成后台表格，方便检查重复地址和重复号码。</p>
+      </div>
+      <div class="actions">
+        <a class="link-btn secondary" href="index.html">返回地图</a>
+        <button id="reloadBtn" type="button">重新读取</button>
+        <button id="loadCloudBtn" class="ghost" type="button">读取云端</button>
+        <button id="importPreviewBtn" class="ghost" type="button">导入 JSON 预览</button>
+        <button id="exportCsvBtn" class="secondary" type="button">导出 CSV</button>
+        <button id="printBtn" class="secondary" type="button">打印 / 保存 PDF</button>
+      </div>
+      <input id="jsonInput" type="file" accept=".json,application/json" hidden>
+    </header>
+
+    <section class="stats" aria-label="统计信息">
+      <div class="stat"><strong id="statCommunities">0</strong><span>公寓 / 地址</span></div>
+      <div class="stat"><strong id="statBuildings">0</strong><span>楼栋 / 分组</span></div>
+      <div class="stat"><strong id="statNumbers">0</strong><span>号码记录</span></div>
+      <div class="stat"><strong id="statDuplicateNumbers">0</strong><span>重复号码组</span></div>
+      <div class="stat"><strong id="statDuplicateAddresses">0</strong><span>重复公寓名</span></div>
+    </section>
+
+    <section class="controls" aria-label="后台筛选">
+      <input id="searchInput" type="search" placeholder="搜索公寓名、楼栋、号码、原始号码..." autocomplete="off">
+      <select id="communityFilter" aria-label="按公寓筛选">
+        <option value="">全部公寓</option>
+      </select>
+      <select id="statusFilter" aria-label="重复筛选">
+        <option value="all">全部记录</option>
+        <option value="duplicate-number">只看重复号码</option>
+        <option value="duplicate-address">只看重复公寓名</option>
+      </select>
+      <div class="view-tabs" aria-label="视图切换">
+        <button id="cardViewBtn" type="button" class="is-active">PPT 表格</button>
+        <button id="tableViewBtn" type="button">总表</button>
+        <button id="dupViewBtn" type="button">重复详情</button>
+      </div>
+    </section>
+
+    <div id="sourceNotice" class="notice">正在读取本机地图数据...</div>
+
+    <section id="cardView">
+      <div class="section-title">
+        <h2>PPT 式公寓表格</h2>
+        <span id="cardCountText">0 个公寓</span>
+      </div>
+      <div id="cards" class="cards"></div>
+    </section>
+
+    <section id="tableView" class="hidden">
+      <div class="section-title">
+        <h2>全部号码总表</h2>
+        <span id="tableCountText">0 条记录</span>
+      </div>
+      <div class="community-card">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>状态</th>
+                <th>公寓 / 地址</th>
+                <th>楼栋 / 分组</th>
+                <th>楼栋照片</th>
+                <th>号码</th>
+                <th>原始号码</th>
+                <th>坐标</th>
+              </tr>
+            </thead>
+            <tbody id="allRowsBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="duplicateView" class="hidden">
+      <div class="section-title">
+        <h2>重复详情</h2>
+        <span id="duplicateCountText">0 组重复</span>
+      </div>
+      <div id="duplicateGroups" class="duplicate-groups"></div>
+    </section>
+
+    <p class="footer-note">说明：后台表格只读显示，不会覆盖地图资料；导入 JSON 预览也只是临时查看。</p>
+  </main>
+
+  <div id="adminPhotoModal" class="photo-modal" aria-hidden="true" role="dialog" aria-label="楼栋照片预览">
+    <div class="photo-modal-card">
+      <div class="photo-modal-head">
+        <strong id="adminPhotoTitle">楼栋照片</strong>
+        <button id="adminPhotoCloseBtn" class="photo-modal-close" type="button" aria-label="关闭照片">×</button>
+      </div>
+      <div class="photo-modal-body">
+        <div id="adminPhotoStatus" class="photo-modal-status">正在读取照片...</div>
+        <img id="adminPhotoImage" alt="楼栋照片" hidden>
+      </div>
+      <div id="adminPhotoMeta" class="photo-modal-foot"></div>
+    </div>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+  <script>
+    (function desktopOnlyGuard() {
+      const isMobileOrCoarse = window.matchMedia && window.matchMedia("(max-width: 700px), (pointer: coarse)").matches;
+      if (!isMobileOrCoarse) return;
+
+      window.__ADMIN_DESKTOP_ONLY__ = true;
+      const page = document.querySelector(".page");
+      if (page) {
+        page.innerHTML = `
+          <header class="hero desktop-only-warning">
+            <div>
+              <h1>后台号码总表</h1>
+              <p>这个后台表格只适合在电脑端打开。手机端不会读取和渲染全部号码，避免大量 JSON 数据导致卡顿、白屏或浏览器崩溃。</p>
+            </div>
+            <div class="actions">
+              <a class="link-btn secondary" href="index.html">返回地图</a>
+            </div>
+          </header>
+          <section class="notice warning">
+            请在电脑浏览器打开后台号码表。手机送包裹查号码，请回到地图页面使用搜索功能。
+          </section>
+        `;
+      }
+    })();
+
+    if (!window.__ADMIN_DESKTOP_ONLY__) {
+      const STORAGE_KEYS = ["communityBuildingMapData", "buildingMapData", "mapMarkers"];
+      const CLOUD_COLLECTION_NAME = "community_map_cloud_data";
+      const CLOUD_DOCUMENT_ID = "mainData";
+      const BUILDING_PHOTO_DB_NAME = "xunbaohuoBuildingPhotos";
+      const BUILDING_PHOTO_STORE_NAME = "photos";
+      const firebaseConfig = {
+        apiKey: "AIzaSyBuikOB_MbGp9RzBHby2a4xK-Tyy7DKsu8",
+        authDomain: "ditudh-3c448.firebaseapp.com",
+        projectId: "ditudh-3c448",
+        storageBucket: "ditudh-3c448.firebasestorage.app",
+        messagingSenderId: "161753142744",
+        appId: "1:161753142744:web:3e890d94a7c98f52f48ead"
+      };
+
+      let currentData = { version: 3, activeCommunityId: null, communities: [] };
+      let allRows = [];
+      let filteredRows = [];
+      let duplicateNumberMap = new Map();
+      let duplicateAddressMap = new Map();
+      let photoRowMap = new Map();
+      let activeView = "cards";
+      let dataSourceLabel = "本机地图数据";
+      let firebaseApp = null;
+      let firebaseDb = null;
+
+      const els = {
+        statCommunities: document.getElementById("statCommunities"),
+        statBuildings: document.getElementById("statBuildings"),
+        statNumbers: document.getElementById("statNumbers"),
+        statDuplicateNumbers: document.getElementById("statDuplicateNumbers"),
+        statDuplicateAddresses: document.getElementById("statDuplicateAddresses"),
+        sourceNotice: document.getElementById("sourceNotice"),
+        searchInput: document.getElementById("searchInput"),
+        communityFilter: document.getElementById("communityFilter"),
+        statusFilter: document.getElementById("statusFilter"),
+        cardView: document.getElementById("cardView"),
+        tableView: document.getElementById("tableView"),
+        duplicateView: document.getElementById("duplicateView"),
+        cardViewBtn: document.getElementById("cardViewBtn"),
+        tableViewBtn: document.getElementById("tableViewBtn"),
+        dupViewBtn: document.getElementById("dupViewBtn"),
+        cards: document.getElementById("cards"),
+        allRowsBody: document.getElementById("allRowsBody"),
+        duplicateGroups: document.getElementById("duplicateGroups"),
+        cardCountText: document.getElementById("cardCountText"),
+        tableCountText: document.getElementById("tableCountText"),
+        duplicateCountText: document.getElementById("duplicateCountText"),
+        jsonInput: document.getElementById("jsonInput"),
+        loadCloudBtn: document.getElementById("loadCloudBtn"),
+        adminPhotoModal: document.getElementById("adminPhotoModal"),
+        adminPhotoTitle: document.getElementById("adminPhotoTitle"),
+        adminPhotoImage: document.getElementById("adminPhotoImage"),
+        adminPhotoStatus: document.getElementById("adminPhotoStatus"),
+        adminPhotoMeta: document.getElementById("adminPhotoMeta"),
+        adminPhotoCloseBtn: document.getElementById("adminPhotoCloseBtn")
+      };
+
+      function escapeHTML(value) {
+        return String(value ?? "").replace(/[&<>"']/g, ch => ({
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          '"': "&quot;",
+          "'": "&#39;"
+        }[ch]));
+      }
+
+      function normalizeText(value) {
+        return String(value ?? "").trim();
+      }
+
+      function normalizeKey(value) {
+        return normalizeText(value).toLowerCase().replace(/\s+/g, "");
+      }
+
+      function safeNumber(value) {
+        const n = Number(value);
+        return Number.isFinite(n) ? n : null;
+      }
+
+      function formatCoord(lat, lng) {
+        const a = safeNumber(lat);
+        const b = safeNumber(lng);
+        if (a === null || b === null) return "";
+        return `${a.toFixed(6)}, ${b.toFixed(6)}`;
+      }
+
+      function getCommunities(data) {
+        if (Array.isArray(data?.communities)) return data.communities;
+        if (Array.isArray(data?.buildings)) {
+          return [{
+            id: "legacy-community",
+            name: normalizeText(data.communityName) || "旧版导入资料",
+            type: "legacy",
+            buildings: data.buildings
+          }];
+        }
+        if (Array.isArray(data)) {
+          const legacyBuilding = { id: "legacy-building", name: "旧版标记", positions: [] };
+          data.forEach((item, index) => {
+            legacyBuilding.positions.push({
+              id: item.id || `legacy-position-${index}`,
+              position: normalizeText(item.number || item.position || index + 1),
+              lat: item.lat,
+              lng: item.lng,
+              originals: [normalizeText(item.number || item.position)].filter(Boolean)
+            });
+          });
+          return [{ id: "legacy-flat", name: "旧版标记资料", type: "legacy", buildings: [legacyBuilding] }];
+        }
+        return [];
+      }
+
+      function readLocalData() {
+        for (const key of STORAGE_KEYS) {
+          const saved = localStorage.getItem(key);
+          if (!saved) continue;
+          try {
+            dataSourceLabel = key === "communityBuildingMapData" ? "本机地图数据" : `旧版本机数据：${key}`;
+            return JSON.parse(saved);
+          } catch (error) {
+            console.warn("读取本地数据失败", key, error);
+          }
+        }
+        dataSourceLabel = "本机地图数据";
+        return { version: 3, activeCommunityId: null, communities: [] };
+      }
+
+      function normalizeCloudSnapshot(raw) {
+        const payload = raw || {};
+        return payload.data || payload.appData || payload;
+      }
+
+      function ensureFirebaseReady() {
+        if (!window.firebase || !firebase.initializeApp || !firebase.firestore) {
+          throw new Error("Firebase SDK 没有加载成功，请检查网络或是否能访问 Firebase CDN。");
+        }
+        if (!firebaseApp) {
+          firebaseApp = firebase.apps && firebase.apps.length ? firebase.app() : firebase.initializeApp(firebaseConfig);
+          firebaseDb = firebase.firestore();
+        }
+        return firebaseDb;
+      }
+
+      async function readCloudData() {
+        const db = ensureFirebaseReady();
+        const snapshot = await db.collection(CLOUD_COLLECTION_NAME).doc(CLOUD_DOCUMENT_ID).get();
+        if (!snapshot.exists) throw new Error("云端还没有地图资料。");
+        const raw = snapshot.data() || {};
+        dataSourceLabel = `云端 Firestore：${CLOUD_COLLECTION_NAME}/${CLOUD_DOCUMENT_ID}`;
+        return normalizeCloudSnapshot(raw);
+      }
+
+      function formatPhotoUpdatedAt(value) {
+        const n = Number(value);
+        if (!Number.isFinite(n) || n <= 0) return normalizeText(value);
+        try {
+          return new Date(n).toLocaleString("zh-CN", { hour12: false });
+        } catch (error) {
+          return String(value);
+        }
+      }
+
+      function getBuildingPhotoInfo(building) {
+        const photo = building?.photo;
+        let id = "";
+        let source = normalizeText(building?.photoDataUrl || building?.photoUrl);
+        let thumbSource = "";
+        let updatedAt = normalizeText(building?.photoUpdatedAt || building?.updatedAt);
+        let hasPhoto = false;
+
+        if (photo && typeof photo === "object") {
+          id = normalizeText(photo.id || photo.photoId);
+          source = source || normalizeText(photo.dataUrl || photo.fullDataUrl || photo.url || photo.fullUrl || photo.photoUrl);
+          thumbSource = normalizeText(photo.thumbDataUrl || photo.thumbUrl || photo.thumbnailUrl);
+          updatedAt = formatPhotoUpdatedAt(photo.updatedAtMs || photo.createdAtMs || photo.updatedAt || updatedAt);
+          hasPhoto = !!photo.hasPhoto;
+        } else if (photo) {
+          source = source || normalizeText(photo);
+        }
+
+        hasPhoto = hasPhoto || !!source || !!thumbSource || !!id || !!building?.hasBuildingPhoto;
+        return {
+          id,
+          source,
+          thumbSource,
+          hasPhoto,
+          updatedAt
+        };
+      }
+
+      function buildRows(data) {
+        const communities = getCommunities(data);
+        const rows = [];
+        let communityOrder = 0;
+
+        communities.forEach((community) => {
+          communityOrder += 1;
+          const communityName = normalizeText(community?.name) || "未命名公寓";
+          const buildings = Array.isArray(community?.buildings) ? community.buildings : [];
+          let buildingOrder = 0;
+
+          buildings.forEach((building) => {
+            buildingOrder += 1;
+            const buildingName = normalizeText(building?.name) || "无楼栋";
+            const positions = Array.isArray(building?.positions) ? building.positions : [];
+            const photoInfo = getBuildingPhotoInfo(building);
+            const buildingPhotoSource = photoInfo.source;
+            const buildingPhotoThumbSource = photoInfo.thumbSource;
+            const buildingPhotoId = photoInfo.id;
+            const hasBuildingPhoto = photoInfo.hasPhoto;
+            const buildingPhotoUpdatedAt = photoInfo.updatedAt;
+
+            if (!positions.length) {
+              rows.push({
+                id: `${community?.id || communityOrder}-${building?.id || buildingOrder}-empty`,
+                communityId: normalizeText(community?.id) || `community-${communityOrder}`,
+                communityName,
+                communityType: normalizeText(community?.type) || "",
+                buildingName,
+                buildingId: normalizeText(building?.id) || `building-${buildingOrder}`,
+                rowKey: `${community?.id || communityOrder}::${building?.id || buildingOrder}::empty`,
+                buildingPhotoSource,
+                buildingPhotoThumbSource,
+                buildingPhotoId,
+                hasBuildingPhoto,
+                buildingPhotoUpdatedAt,
+                number: "",
+                originals: [],
+                lat: safeNumber(building?.lat),
+                lng: safeNumber(building?.lng),
+                isEmptyBuilding: true
+              });
+              return;
+            }
+
+            positions.forEach((position, index) => {
+              const number = normalizeText(position?.position) || normalizeText(position?.original) || normalizeText(position?.number) || "";
+              const originals = Array.isArray(position?.originals)
+                ? position.originals.map(normalizeText).filter(Boolean)
+                : [normalizeText(position?.original), normalizeText(position?.number)].filter(Boolean);
+              const lat = safeNumber(position?.lat) ?? safeNumber(building?.lat);
+              const lng = safeNumber(position?.lng) ?? safeNumber(building?.lng);
+
+              rows.push({
+                id: `${community?.id || communityOrder}-${building?.id || buildingOrder}-${position?.id || index}`,
+                communityId: normalizeText(community?.id) || `community-${communityOrder}`,
+                communityName,
+                communityType: normalizeText(community?.type) || "",
+                buildingName,
+                buildingId: normalizeText(building?.id) || `building-${buildingOrder}`,
+                rowKey: `${community?.id || communityOrder}::${building?.id || buildingOrder}::${position?.id || index}`,
+                buildingPhotoSource,
+                buildingPhotoThumbSource,
+                buildingPhotoId,
+                hasBuildingPhoto,
+                buildingPhotoUpdatedAt,
+                number,
+                originals,
+                lat,
+                lng,
+                isEmptyBuilding: false
+              });
+            });
+          });
+        });
+
+        return rows.sort((a, b) => {
+          const communityCompare = a.communityName.localeCompare(b.communityName, "zh-CN", { numeric: true });
+          if (communityCompare) return communityCompare;
+          const buildingCompare = a.buildingName.localeCompare(b.buildingName, "zh-CN", { numeric: true });
+          if (buildingCompare) return buildingCompare;
+          return a.number.localeCompare(b.number, "zh-CN", { numeric: true });
+        });
+      }
+
+      function rebuildDuplicateMaps() {
+        duplicateNumberMap = new Map();
+        duplicateAddressMap = new Map();
+
+        allRows.forEach((row) => {
+          const numberKey = `${normalizeKey(row.communityName)}|${normalizeKey(row.number)}`;
+          if (row.number) {
+            if (!duplicateNumberMap.has(numberKey)) duplicateNumberMap.set(numberKey, []);
+            duplicateNumberMap.get(numberKey).push(row);
+          }
+        });
+
+        const communityNames = new Map();
+        getCommunities(currentData).forEach((community) => {
+          const key = normalizeKey(community?.name);
+          if (!key) return;
+          if (!communityNames.has(key)) communityNames.set(key, []);
+          communityNames.get(key).push(community);
+        });
+
+        [...duplicateNumberMap.entries()].forEach(([key, list]) => {
+          if (list.length < 2) duplicateNumberMap.delete(key);
+        });
+
+        communityNames.forEach((list, key) => {
+          if (list.length > 1) duplicateAddressMap.set(key, list);
+        });
+      }
+
+      function rowHasDuplicateNumber(row) {
+        if (!row.number) return false;
+        return duplicateNumberMap.has(`${normalizeKey(row.communityName)}|${normalizeKey(row.number)}`);
+      }
+
+      function rowHasDuplicateAddress(row) {
+        return duplicateAddressMap.has(normalizeKey(row.communityName));
+      }
+
+      function getStatusHTML(row) {
+        const parts = [];
+        if (rowHasDuplicateNumber(row)) parts.push('<span class="dup-pill">重复号码</span>');
+        if (rowHasDuplicateAddress(row)) parts.push('<span class="address-pill">重复地址</span>');
+        if (!parts.length) parts.push('<span class="ok-pill">正常</span>');
+        return parts.join(" ");
+      }
+
+      function getPhotoHTML(row) {
+        if (!row.hasBuildingPhoto) return "";
+        const key = escapeHTML(row.rowKey || row.id);
+        const text = row.buildingPhotoUpdatedAt ? `📷 查看照片 · ${escapeHTML(row.buildingPhotoUpdatedAt)}` : "📷 查看照片";
+        return `<button class="photo-pill photo-view-btn" type="button" data-photo-row="${key}" title="打开这栋楼的照片">${text}</button>`;
+      }
+
+
+      function setPhotoModalOpen(open) {
+        if (!els.adminPhotoModal) return;
+        els.adminPhotoModal.classList.toggle("is-open", !!open);
+        els.adminPhotoModal.setAttribute("aria-hidden", open ? "false" : "true");
+      }
+
+      function setPhotoModalStatus(message) {
+        if (els.adminPhotoStatus) {
+          els.adminPhotoStatus.textContent = message;
+          els.adminPhotoStatus.hidden = false;
+        }
+        if (els.adminPhotoImage) {
+          els.adminPhotoImage.hidden = true;
+          els.adminPhotoImage.removeAttribute("src");
+        }
+      }
+
+      function showPhotoInModal(dataUrl) {
+        if (!els.adminPhotoImage) return;
+        if (els.adminPhotoStatus) els.adminPhotoStatus.hidden = true;
+        els.adminPhotoImage.src = dataUrl;
+        els.adminPhotoImage.hidden = false;
+      }
+
+      function openAdminPhotoDb() {
+        return new Promise((resolve, reject) => {
+          if (!window.indexedDB) {
+            reject(new Error("当前浏览器不支持本地照片缓存"));
+            return;
+          }
+          const request = indexedDB.open(BUILDING_PHOTO_DB_NAME, 1);
+          request.onupgradeneeded = () => {
+            const db = request.result;
+            if (!db.objectStoreNames.contains(BUILDING_PHOTO_STORE_NAME)) {
+              db.createObjectStore(BUILDING_PHOTO_STORE_NAME, { keyPath: "id" });
+            }
+          };
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => reject(request.error || new Error("打开本地照片缓存失败"));
+        });
+      }
+
+      async function getLocalAdminBuildingPhoto(photoId) {
+        if (!photoId) return null;
+        try {
+          const db = await openAdminPhotoDb();
+          const result = await new Promise((resolve, reject) => {
+            const tx = db.transaction(BUILDING_PHOTO_STORE_NAME, "readonly");
+            const request = tx.objectStore(BUILDING_PHOTO_STORE_NAME).get(photoId);
+            request.onsuccess = () => resolve(request.result || null);
+            request.onerror = () => reject(request.error || new Error("读取本地照片失败"));
+          });
+          db.close();
+          return result;
+        } catch (error) {
+          console.warn("后台读取本地照片失败：", error);
+          return null;
+        }
+      }
+
+      async function getCloudAdminBuildingPhoto(photoId) {
+        if (!photoId) return null;
+        const db = ensureFirebaseReady();
+        const snapshot = await db.collection(CLOUD_COLLECTION_NAME).doc(photoId).get();
+        if (!snapshot.exists) return null;
+        return snapshot.data() || null;
+      }
+
+      async function loadAdminBuildingPhoto(row) {
+        if (!row) return null;
+        if (row.buildingPhotoSource && row.buildingPhotoSource.startsWith("data:image/")) {
+          return { dataUrl: row.buildingPhotoSource, source: "资料内照片" };
+        }
+
+        const localRecord = await getLocalAdminBuildingPhoto(row.buildingPhotoId);
+        if (localRecord?.dataUrl) return { ...localRecord, source: "本机缓存" };
+
+        try {
+          const cloudRecord = await getCloudAdminBuildingPhoto(row.buildingPhotoId);
+          if (cloudRecord?.dataUrl) return { ...cloudRecord, source: "云端照片" };
+        } catch (error) {
+          console.warn("后台读取云端照片失败：", error);
+        }
+
+        if (row.buildingPhotoSource && row.buildingPhotoSource.startsWith("http")) {
+          return { dataUrl: row.buildingPhotoSource, source: "照片链接" };
+        }
+
+        if (row.buildingPhotoThumbSource) {
+          return { dataUrl: row.buildingPhotoThumbSource, source: "缩略图预览" };
+        }
+
+        return null;
+      }
+
+      async function openAdminBuildingPhoto(rowKey) {
+        const row = photoRowMap.get(rowKey);
+        if (!row) return;
+
+        if (els.adminPhotoTitle) els.adminPhotoTitle.textContent = `${row.communityName} · ${row.buildingName} 大楼照片`;
+        if (els.adminPhotoMeta) els.adminPhotoMeta.textContent = `号码：${row.number || "—"}；照片属于整栋楼，同楼小号码共用。`;
+        setPhotoModalOpen(true);
+        setPhotoModalStatus("正在读取照片...");
+
+        const record = await loadAdminBuildingPhoto(row);
+        if (!record?.dataUrl) {
+          setPhotoModalStatus("没有找到完整照片。可以回到地图页面重新添加这栋楼照片，或点击“读取云端”后再试。");
+          return;
+        }
+
+        showPhotoInModal(record.dataUrl);
+        const sizeText = record.sizeKB ? `，约 ${record.sizeKB}KB` : "";
+        if (els.adminPhotoMeta) els.adminPhotoMeta.textContent = `公寓：${row.communityName}；楼栋：${row.buildingName}；来源：${record.source || "照片资料"}${sizeText}`;
+      }
+
+      function closeAdminBuildingPhoto() {
+        setPhotoModalOpen(false);
+        if (els.adminPhotoImage) {
+          els.adminPhotoImage.hidden = true;
+          els.adminPhotoImage.removeAttribute("src");
+        }
+      }
+
+      function updateStats() {
+        const communities = getCommunities(currentData);
+        const buildings = communities.reduce((sum, community) => sum + (Array.isArray(community?.buildings) ? community.buildings.length : 0), 0);
+        const numbers = allRows.filter((row) => !row.isEmptyBuilding && row.number).length;
+        els.statCommunities.textContent = communities.length;
+        els.statBuildings.textContent = buildings;
+        els.statNumbers.textContent = numbers;
+        els.statDuplicateNumbers.textContent = duplicateNumberMap.size;
+        els.statDuplicateAddresses.textContent = duplicateAddressMap.size;
+      }
+
+      function populateCommunityFilter() {
+        const current = els.communityFilter.value;
+        const options = getCommunities(currentData)
+          .map((community) => normalizeText(community?.name))
+          .filter(Boolean)
+          .sort((a, b) => a.localeCompare(b, "zh-CN", { numeric: true }));
+        const unique = [...new Set(options)];
+        els.communityFilter.innerHTML = '<option value="">全部公寓</option>' + unique.map((name) => `<option value="${escapeHTML(name)}">${escapeHTML(name)}</option>`).join("");
+        if (unique.includes(current)) els.communityFilter.value = current;
+      }
+
+      function applyFilters() {
+        const keyword = normalizeKey(els.searchInput.value);
+        const community = normalizeText(els.communityFilter.value);
+        const status = els.statusFilter.value;
+
+        filteredRows = allRows.filter((row) => {
+          if (community && row.communityName !== community) return false;
+          if (status === "duplicate-number" && !rowHasDuplicateNumber(row)) return false;
+          if (status === "duplicate-address" && !rowHasDuplicateAddress(row)) return false;
+          if (keyword) {
+            const haystack = normalizeKey([
+              row.communityName,
+              row.buildingName,
+              row.number,
+              row.originals.join(" "),
+              formatCoord(row.lat, row.lng)
+            ].join(" "));
+            if (!haystack.includes(keyword)) return false;
+          }
+          return true;
+        });
+
+        renderActiveView();
+      }
+
+      function makeRowsTable(rows) {
+        if (!rows.length) return '<div class="empty">没有符合条件的号码资料。</div>';
+        return `
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>状态</th>
+                  <th>楼栋 / 分组</th>
+                  <th>楼栋照片</th>
+                  <th>号码</th>
+                  <th>原始号码</th>
+                  <th>坐标</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rows.map((row, index) => rowHTML(row, index + 1, false)).join("")}
+              </tbody>
+            </table>
+          </div>`;
+      }
+
+      function rowHTML(row, index, includeCommunity = true) {
+        const classes = [rowHasDuplicateNumber(row) ? "duplicate-row" : "", rowHasDuplicateAddress(row) ? "duplicate-address-row" : ""].filter(Boolean).join(" ");
+        return `
+          <tr class="${classes}">
+            <td>${index}</td>
+            <td>${getStatusHTML(row)}</td>
+            ${includeCommunity ? `<td class="wrap">${escapeHTML(row.communityName)}</td>` : ""}
+            <td class="wrap">${escapeHTML(row.buildingName)}</td>
+            <td>${getPhotoHTML(row)}</td>
+            <td><strong>${escapeHTML(row.number || "—")}</strong></td>
+            <td class="wrap">${escapeHTML(row.originals.join("、"))}</td>
+            <td>${escapeHTML(formatCoord(row.lat, row.lng))}</td>
+          </tr>`;
+      }
+
+      function renderCards() {
+        const grouped = new Map();
+        filteredRows.forEach((row) => {
+          if (!grouped.has(row.communityName)) grouped.set(row.communityName, []);
+          grouped.get(row.communityName).push(row);
+        });
+
+        els.cardCountText.textContent = `${grouped.size} 个公寓`;
+        if (!filteredRows.length) {
+          els.cards.innerHTML = '<div class="empty">没有符合条件的公寓号码。可以先返回地图，等云端状态显示已同步后再重新打开后台表。</div>';
+          return;
+        }
+
+        els.cards.innerHTML = [...grouped.entries()].map(([communityName, rows]) => {
+          const buildingCount = new Set(rows.map((row) => row.buildingId || row.buildingName)).size;
+          const numberCount = rows.filter((row) => row.number).length;
+          return `
+            <article class="community-card">
+              <div class="community-card-head">
+                <div>
+                  <h3>${escapeHTML(communityName)}</h3>
+                  <p>${buildingCount} 个楼栋 / 分组 · ${numberCount} 个号码</p>
+                </div>
+                <span class="badge">${rowHasDuplicateAddress(rows[0]) ? "重复地址" : "后台表"}</span>
+              </div>
+              ${makeRowsTable(rows)}
+            </article>`;
+        }).join("");
+      }
+
+      function renderTable() {
+        els.tableCountText.textContent = `${filteredRows.length} 条记录`;
+        if (!filteredRows.length) {
+          els.allRowsBody.innerHTML = '<tr><td colspan="8"><div class="empty">没有符合条件的号码资料。</div></td></tr>';
+          return;
+        }
+        els.allRowsBody.innerHTML = filteredRows.map((row, index) => rowHTML(row, index + 1, true)).join("");
+      }
+
+      function renderDuplicates() {
+        const groups = [];
+        duplicateNumberMap.forEach((rows, key) => {
+          const [communityNameKey, number] = key.split("|");
+          const labelCommunity = rows[0]?.communityName || communityNameKey;
+          groups.push({ type: "number", title: `${labelCommunity} · 号码 ${number}`, rows });
+        });
+        duplicateAddressMap.forEach((communities) => {
+          const name = communities[0]?.name || "未命名公寓";
+          const rows = allRows.filter((row) => normalizeKey(row.communityName) === normalizeKey(name));
+          groups.push({ type: "address", title: `重复公寓名：${name}`, rows });
+        });
+
+        els.duplicateCountText.textContent = `${groups.length} 组重复`;
+        if (!groups.length) {
+          els.duplicateGroups.innerHTML = '<div class="empty">目前没有发现重复号码或重复公寓名。</div>';
+          return;
+        }
+
+        els.duplicateGroups.innerHTML = groups.map((group) => `
+          <article class="duplicate-group ${group.type === "address" ? "address" : ""}">
+            <h3>${escapeHTML(group.title)}</h3>
+            ${makeRowsTable(group.rows)}
+          </article>`).join("");
+      }
+
+      function setActiveView(view) {
+        activeView = view;
+        els.cardView.classList.toggle("hidden", view !== "cards");
+        els.tableView.classList.toggle("hidden", view !== "table");
+        els.duplicateView.classList.toggle("hidden", view !== "duplicates");
+        els.cardViewBtn.classList.toggle("is-active", view === "cards");
+        els.tableViewBtn.classList.toggle("is-active", view === "table");
+        els.dupViewBtn.classList.toggle("is-active", view === "duplicates");
+        renderActiveView();
+      }
+
+      function renderActiveView() {
+        if (activeView === "cards") renderCards();
+        else if (activeView === "table") renderTable();
+        else renderDuplicates();
+      }
+
+      function loadData(data, sourceLabel) {
+        currentData = data || { version: 3, activeCommunityId: null, communities: [] };
+        if (sourceLabel) dataSourceLabel = sourceLabel;
+        allRows = buildRows(currentData);
+        photoRowMap = new Map(allRows.map((row) => [row.rowKey || row.id, row]));
+        rebuildDuplicateMaps();
+        updateStats();
+        populateCommunityFilter();
+        applyFilters();
+        const tone = allRows.length ? "ok" : "warning";
+        els.sourceNotice.className = `notice ${tone}`;
+        els.sourceNotice.innerHTML = `${escapeHTML(dataSourceLabel)}：已整理 ${allRows.length} 条后台记录。这个页面只读显示，不会修改地图数据。`;
+      }
+
+      function reloadLocal() {
+        loadData(readLocalData());
+      }
+
+      async function loadCloud() {
+        if (!els.loadCloudBtn) return;
+        els.loadCloudBtn.disabled = true;
+        els.sourceNotice.className = "notice";
+        els.sourceNotice.textContent = "正在读取云端资料...";
+        try {
+          const cloudData = await readCloudData();
+          loadData(cloudData);
+        } catch (error) {
+          els.sourceNotice.className = "notice warning";
+          els.sourceNotice.textContent = `读取云端失败：${error.message || error}。已改为读取本机地图数据。`;
+          reloadLocal();
+        } finally {
+          els.loadCloudBtn.disabled = false;
+        }
+      }
+
+      function exportCSV() {
+        const headers = ["序号", "公寓/地址", "楼栋/分组", "楼栋照片", "号码", "原始号码", "坐标", "状态"];
+        const lines = [headers, ...filteredRows.map((row, index) => [
+          index + 1,
+          row.communityName,
+          row.buildingName,
+          row.hasBuildingPhoto ? "有照片" : "",
+          row.number,
+          row.originals.join("、"),
+          formatCoord(row.lat, row.lng),
+          [rowHasDuplicateNumber(row) ? "重复号码" : "", rowHasDuplicateAddress(row) ? "重复地址" : "正常"].filter(Boolean).join("/")
+        ])].map((cols) => cols.map((value) => `"${String(value ?? "").replace(/"/g, '""')}"`).join(","));
+
+        const blob = new Blob(["\ufeff" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `后台号码总表-${new Date().toISOString().slice(0, 10)}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      }
+
+      function importPreviewFile(file) {
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            const parsed = JSON.parse(String(reader.result || "{}"));
+            dataSourceLabel = `导入 JSON 预览：${file.name}`;
+            loadData(parsed);
+          } catch (error) {
+            alert("JSON 文件读取失败，请检查文件格式。\n" + (error.message || error));
+          } finally {
+            els.jsonInput.value = "";
+          }
+        };
+        reader.readAsText(file, "utf-8");
+      }
+
+      document.getElementById("reloadBtn").addEventListener("click", reloadLocal);
+      els.loadCloudBtn.addEventListener("click", loadCloud);
+      document.getElementById("importPreviewBtn").addEventListener("click", () => els.jsonInput.click());
+      els.jsonInput.addEventListener("change", (event) => importPreviewFile(event.target.files && event.target.files[0]));
+      document.getElementById("exportCsvBtn").addEventListener("click", exportCSV);
+      document.getElementById("printBtn").addEventListener("click", () => window.print());
+      els.searchInput.addEventListener("input", applyFilters);
+      els.communityFilter.addEventListener("change", applyFilters);
+      els.statusFilter.addEventListener("change", applyFilters);
+      els.cardViewBtn.addEventListener("click", () => setActiveView("cards"));
+      els.tableViewBtn.addEventListener("click", () => setActiveView("table"));
+      els.dupViewBtn.addEventListener("click", () => setActiveView("duplicates"));
+      document.addEventListener("click", (event) => {
+        const button = event.target && event.target.closest ? event.target.closest(".photo-view-btn") : null;
+        if (!button) return;
+        event.preventDefault();
+        openAdminBuildingPhoto(button.dataset.photoRow || "");
+      });
+      if (els.adminPhotoCloseBtn) els.adminPhotoCloseBtn.addEventListener("click", closeAdminBuildingPhoto);
+      if (els.adminPhotoModal) {
+        els.adminPhotoModal.addEventListener("click", (event) => {
+          if (event.target === els.adminPhotoModal) closeAdminBuildingPhoto();
+        });
+      }
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") closeAdminBuildingPhoto();
+      });
+
+      reloadLocal();
+      setTimeout(() => {
+        if (!allRows.length && navigator.onLine) loadCloud();
+      }, 900);
+    }
+  </script>
+</body>
+</html>

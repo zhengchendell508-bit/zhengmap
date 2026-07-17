@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#000000">
+  <title>公寓地图 APP V2</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="app" aria-label="公寓地图 APP V2">
+    <div id="map"></div>
+
+    <section class="community-bar" aria-label="当前公寓选择">
+      <label for="communitySelect">当前公寓</label>
+      <input id="communitySelect" class="community-combobox" type="text" aria-label="输入公寓地址搜索" placeholder="输入地址搜索" autocomplete="off">
+      <button id="communityDropdownBtn" class="community-dropdown-btn" type="button" aria-label="显示附近公寓地址">▼</button>
+      <datalist id="communityOptions"></datalist>
+      <div id="communitySuggestionPanel" class="community-suggestion-panel" role="listbox" aria-label="公寓地址搜索结果"></div>
+      <button id="addCommunityBtn" type="button">新增</button>
+      <button id="renameCommunityBtn" type="button">改名</button>
+    </section>
+
+    <section class="top-toolbar" aria-label="地图工具">
+      <button id="menuBtn" class="tool-btn" type="button" aria-label="菜单">
+        <span></span><span></span><span></span>
+      </button>
+      <button id="bgToggleBtn" class="tool-btn text-tool" type="button" aria-label="收起楼栋显示公寓群牌面">群</button>
+      <button id="undoBtn" class="tool-btn text-tool" type="button" aria-label="撤销上一步">撤</button>
+      <button id="settingsBtn" class="tool-btn" type="button" aria-label="打开设置">⚙</button>
+    </section>
+
+    <section class="nav-controls" aria-label="地图导航方向键">
+      <button id="navButton" class="round-nav compass-btn" type="button" aria-label="定位并开启方向跟随">
+        <svg viewBox="0 0 64 64" aria-hidden="true">
+          <circle cx="32" cy="32" r="22" fill="none" stroke="currentColor" stroke-width="5"></circle>
+          <g class="compass-needle">
+            <path d="M32 15 41 35 32 31 23 35 32 15Z" fill="currentColor"></path>
+            <circle cx="32" cy="32" r="4.2" fill="#fbf8ff" stroke="currentColor" stroke-width="2"></circle>
+          </g>
+        </svg>
+      </button>
+
+      
+
+      <button id="addHereBtn" class="round-nav add-pin-btn" type="button" aria-label="在地图中心添加标记">
+        <svg viewBox="0 0 64 64" aria-hidden="true">
+          <path d="M42 28c0 11-10 22-10 22S22 39 22 28a10 10 0 1 1 20 0Z" fill="currentColor"></path>
+          <circle cx="32" cy="28" r="4.5" fill="#fbf8ff"></circle>
+          <path d="M12 32h16M20 24v16" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="square"></path>
+        </svg>
+      </button>
+    </section>
+
+    <div id="locationStatus" class="status-pill">正在初始化地图...</div>
+    <div id="headingText" class="heading-chip">方向: 未知</div>
+    <div id="cloudSyncStatus" class="cloud-sync-status">云端：正在连接...</div>
+
+    <section id="deliveryRoutePanel" class="delivery-route-panel" aria-label="本次送货号码清单">
+      <div class="delivery-route-section">
+        <button id="togglePendingRouteList" class="delivery-route-toggle" type="button" aria-expanded="false">
+          <span>本次号码</span><strong id="pendingRouteToggleCount">0</strong><em>⌄</em>
+        </button>
+        <div id="pendingRouteListPanel" class="delivery-route-card" aria-label="本次号码列表">
+          <div id="deliveryPasswordCard" class="delivery-password-card" hidden aria-label="当前公寓门禁密码">
+            <div class="delivery-password-row">
+              <span>外门</span><strong id="deliveryGateCodeText">未填</strong>
+            </div>
+            <div class="delivery-password-row">
+              <span>包裹室</span><strong id="deliveryPackageCodeText">未填</strong>
+            </div>
+          </div>
+          <div class="delivery-route-card-header">
+            <strong>待送号码 (<span id="pendingRouteCount">0</span>)</strong>
+            <div class="delivery-route-header-actions"><button id="planV2RouteBtn" type="button">规划蓝线</button><button id="addDeliveryRouteNumberBtn" type="button">＋ 增加</button></div>
+          </div>
+          <div id="pendingRouteList" class="delivery-route-list"></div>
+          <div id="pendingRouteEmptyState" class="delivery-route-finish-state" hidden>
+            <div class="delivery-route-finish-badge">✓</div>
+            <strong>待送号码已清空</strong>
+            <span>当前本次号码已经归零，可以结束本次送货。</span>
+            <button id="finishDeliveryRouteBtn" type="button">结束</button>
+          </div>
+          <div class="delivery-route-divider"></div>
+          <div class="delivery-route-delivered-title">
+            <strong>已送达 (<span id="deliveredRouteCount">0</span>)</strong>
+            <span>已隐藏</span>
+          </div>
+          <div id="deliveredRouteList" class="delivery-route-list is-delivered-list"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="v2RouteStatusPanel" class="v2-route-status-panel" aria-label="V2路线状态" hidden>
+      <div><strong>V2 蓝线路线</strong><span id="v2RouteStatusText">尚未规划</span></div>
+      <button id="clearV2RouteBtn" type="button">清除蓝线</button>
+    </section>
+
+    <div id="deliveryToast" class="delivery-toast" role="status" aria-live="polite">
+      <span id="deliveryToastText">已送达</span>
+      <button id="undoDeliveryHideBtn" type="button">撤销</button>
+      <button id="closeDeliveryToastBtn" type="button" aria-label="关闭提示">×</button>
+    </div>
+
+
+    <aside id="settingsPanel" class="settings-panel" aria-label="标记设置">
+      <label for="fontSize">新建标记字号: <span id="fontSizeValue">11</span></label>
+      <input type="range" id="fontSize" min="5" max="15" value="11">
+
+      <label for="markerSize">新建标记大小: <span id="markerSizeValue">22</span></label>
+      <input type="range" id="markerSize" min="15" max="25" value="22">
+
+      <label for="markerColor">标记颜色</label>
+      <input type="color" id="markerColor" value="#000000">
+
+      <label for="markerShape">标记形状</label>
+      <select id="markerShape">
+        <option value="circle">圆形</option>
+        <option value="square">方形</option>
+        <option value="rectangle">长方形</option>
+      </select>
+
+      <details class="advanced-settings-block">
+        <summary>高级设置 / 备份</summary>
+        <button id="applySettingsBtn" class="secondary-btn" type="button">应用到现有公寓号码</button>
+        <button id="exportBtn" type="button">导出当前 APP JSON</button>
+        <button id="exportAllCloudRawBtn" class="cloud-export-btn" type="button">提取全部云端原始资料</button>
+        <button id="exportAllCloudAppBtn" class="cloud-export-btn secondary-cloud-export" type="button">提取并整理为 APP JSON</button>
+        <button id="analyzeCloudStructureBtn" class="cloud-export-btn structure-analysis-btn" type="button">分析云端数据结构</button>
+        <button id="scanLocalHistoryBtn" class="cloud-export-btn local-history-btn" type="button">检查本机历史数据</button>
+        <button id="downloadLocalHistoryBtn" class="cloud-export-btn local-history-download-btn" type="button" disabled>下载本机历史扫描报告</button>
+        <div id="localHistoryStatus" class="local-history-status" role="status" aria-live="polite">尚未检查本机历史数据</div>
+        <div id="localHistoryResults" class="local-history-results" hidden></div>
+        <div id="cloudExportProgress" class="cloud-export-progress" role="status" aria-live="polite">尚未开始提取云端资料</div>
+        <div id="cloudStructureSummary" class="cloud-structure-summary" hidden></div>
+        <label for="importInput">导入 JSON</label>
+        <button id="importJsonBtn" class="secondary-btn" type="button">从云盘导入 JSON</button>
+        <a id="desktopAdminTableLink" class="desktop-admin-table-link" href="admin.html" target="_blank" rel="noopener" aria-label="打开电脑端后台号码总表">打开后台号码总表（电脑端）</a>
+        <input type="file" id="importInput" accept=".json,application/json" style="display:none">
+      </details>
+    </aside>
+
+    <section id="universalNumberPanel" class="universal-number-panel" aria-label="万用号码输入表格">
+      <div class="universal-number-header">
+        <div>
+          <strong id="universalNumberTitle">万用号码输入</strong>
+          <span>大楼可留空；大楼支持 3、3 4 6、3-6；生成后先显示楼号，点击楼号再展开号码。</span>
+        </div>
+        <button id="closeUniversalNumberPanel" type="button" aria-label="关闭万用号码输入">×</button>
+      </div>
+
+      <div class="universal-number-table" role="group" aria-label="大楼楼层公寓号输入">
+        <label>
+          <span>大楼</span>
+          <input id="universalBuildingInput" type="text" inputmode="numeric" placeholder="留空=无大楼；如 3 4 6 或 3-6" autocomplete="off">
+        </label>
+        <label>
+          <span>楼层</span>
+          <input id="universalFloorInput" type="text" inputmode="text" placeholder="留空=无楼层；如 1-3" autocomplete="off">
+        </label>
+        <label>
+          <span>公寓号</span>
+          <input id="universalUnitInput" type="text" inputmode="text" placeholder="例如 01-10 或 101 103" autocomplete="off">
+        </label>
+      </div>
+
+      <div id="universalPreview" class="universal-preview">示例：3 4 6 / 1 / 01-15 → 301-315、401-415、601-615</div>
+
+      <div class="universal-number-actions">
+        <button id="confirmUniversalNumber" type="button">生成号码</button>
+        <button id="cancelUniversalNumber" type="button">取消</button>
+      </div>
+    </section>
+
+
+
+    <section id="communitySearchPanel" class="community-search-panel" aria-label="公寓群号码搜索面板">
+      <div class="community-search-header">
+        <div>
+          <strong id="communitySearchTitle">公寓群</strong>
+          <span id="communitySearchHint">输入要显示的公寓号码</span>
+        </div>
+        <button id="closeCommunitySearchPanel" type="button" aria-label="关闭公寓群搜索面板">×</button>
+      </div>
+
+      <div class="community-search-main">
+        <div class="community-search-sheet" aria-label="公寓号码输入表格">
+          <div class="community-search-line-numbers" aria-hidden="true">
+            <span>1</span>
+            <span>2</span>
+            <span>3</span>
+            <span>4</span>
+            <span>5</span>
+            <span>6</span>
+            <span>7</span>
+            <span>8</span>
+            <span>9</span>
+            <span>10</span>
+          </div>
+          <div class="community-search-input-shell">
+            <textarea id="communityNumberSearchInput" rows="10" inputmode="none" placeholder="101&#10;102&#10;203" autocomplete="off" autocapitalize="off" spellcheck="false" data-mobile-keypad-only="true"></textarea>
+          </div>
+        </div>
+
+        <div class="community-search-keypad-wrap">
+          <div class="community-search-keypad" aria-label="号码输入键盘">
+            <button type="button" data-search-insert="1">1</button>
+            <button type="button" data-search-insert="2">2</button>
+            <button type="button" data-search-insert="3">3</button>
+            <button type="button" data-search-insert="4">4</button>
+            <button type="button" data-search-insert="5">5</button>
+            <button type="button" data-search-insert="6">6</button>
+            <button type="button" data-search-insert="7">7</button>
+            <button type="button" data-search-insert="8">8</button>
+            <button type="button" data-search-insert="9">9</button>
+            <button type="button" data-search-action="backspace" class="search-backspace-btn" aria-label="删除">⌫</button>
+            <button type="button" data-search-insert="0">0</button>
+            <button type="button" data-search-insert="\n" class="search-next-line-btn">下一行</button>
+          </div>
+          <button id="confirmCommunityNumberSearch" type="button">确认</button>
+        </div>
+      </div>
+
+      <div class="community-search-actions">
+        <button id="showAllCommunityNumbers" type="button">显示全部号码</button>
+        <button id="showCommunityBuildingsOnly" type="button">只显示楼栋</button>
+      </div>
+    </section>
+
+
+    <section id="buildingPanel" class="building-panel" aria-label="楼栋位置选择面板">
+      <div class="building-panel-header">
+        <div>
+          <strong id="buildingPanelTitle">楼栋</strong>
+          <span id="buildingPanelHint">选择要显示的位置号</span>
+        </div>
+        <button id="closeBuildingPanel" type="button" aria-label="关闭楼栋面板">×</button>
+      </div>
+
+      <div id="positionList" class="position-list"></div>
+
+      <div class="building-panel-actions">
+        <button id="showSelectedPositions" type="button">只显示选中</button>
+        <button id="showAllPositions" type="button">显示全部</button>
+        <button id="restoreBuildings" type="button">恢复楼栋</button>
+        <button id="addBuildingPhotoBtn" type="button">＋ 添加大楼照片</button>
+        <button id="deleteSelectedPositions" type="button">删除选中</button>
+        <button id="bulkDeletePositions" type="button">批量删除</button>
+      </div>
+    </section>
+
+    <input id="buildingPhotoInput" type="file" accept="image/jpeg,image/png,image/heic,image/heif,image/*" capture="environment" style="display:none">
+
+    <section id="buildingPhotoViewer" class="building-photo-viewer" aria-label="大楼照片查看" aria-hidden="true">
+      <div class="building-photo-viewer-head">
+        <strong id="buildingPhotoViewerTitle">大楼照片</strong>
+        <button id="closeBuildingPhotoViewer" type="button" aria-label="关闭大楼照片">×</button>
+      </div>
+      <div id="buildingPhotoViewerBody" class="building-photo-viewer-body">
+        <img id="buildingPhotoViewerImage" alt="大楼照片" role="button" aria-label="点击切换纯照片显示">
+      </div>
+      <div class="building-photo-viewer-actions">
+        <div id="buildingPhotoCloudSizeText" class="building-photo-cloud-size">云端估算：—</div>
+        <button id="replaceBuildingPhotoBtn" type="button">更换照片</button>
+        <button id="deleteBuildingPhotoBtn" type="button">删除照片</button>
+      </div>
+    </section>
+
+
+
+    <section id="mobileModePanel" class="mobile-mode-panel" aria-label="手机端菜单">
+      <div class="mobile-mode-header">
+        <strong>手机端菜单</strong>
+        <button id="closeMobileModePanel" type="button" aria-label="关闭菜单">×</button>
+      </div>
+      <div class="mobile-mode-status" id="mobileModeStatusText">当前：送包裹模式</div>
+      <button id="mobileToggleEditModeBtn" type="button" class="mobile-mode-primary">进入编辑模式</button>
+      <button id="openCommunityPasswordBtn" type="button" class="mobile-password-menu-btn">公寓密码</button>
+      <button id="openPhotoStorageStatsBtn" type="button" class="mobile-photo-storage-btn">照片容量</button>
+      <button id="mobileOpenSettingsBtn" type="button">标记设置</button>
+      <details class="mobile-advanced-actions">
+        <summary>高级备份</summary>
+        <button id="mobileImportJsonBtn" type="button">从云盘导入 JSON</button>
+        <button id="mobileExportJsonBtn" type="button">导出 JSON 到云盘</button>
+      </details>
+      <p class="mobile-mode-note">送包裹模式下不能拖动名牌、楼栋和号码；进入编辑模式后才允许新增、修改、拖动和删除。</p>
+    </section>
+
+    <section id="communityPasswordPanel" class="community-password-panel" aria-label="公寓密码填写" aria-hidden="true">
+      <div class="community-password-header">
+        <div>
+          <strong>公寓密码</strong>
+          <span id="communityPasswordCurrentName">当前公寓</span>
+        </div>
+        <button id="closeCommunityPasswordPanel" type="button" aria-label="关闭公寓密码">×</button>
+      </div>
+      <label class="community-password-field">
+        <span>外门 / 大楼门禁</span>
+        <input id="communityGateCodeInput" type="text" inputmode="text" autocomplete="off" placeholder="例如 #1234 或 1234">
+      </label>
+      <label class="community-password-field">
+        <span>包裹室 / 保管箱</span>
+        <input id="communityPackageCodeInput" type="text" inputmode="text" autocomplete="off" placeholder="例如 5678 或 12#34">
+      </label>
+      <div class="community-password-actions">
+        <button id="saveCommunityPasswordBtn" type="button">保存</button>
+        <button id="cancelCommunityPasswordBtn" type="button">取消</button>
+      </div>
+      <p class="community-password-note">只在编辑模式修改；留空保存后，送包裹清单里不会显示对应密码。</p>
+    </section>
+
+    <section id="photoStorageStatsPanel" class="photo-storage-stats-panel" aria-label="照片容量统计" aria-hidden="true">
+      <div class="photo-storage-stats-header">
+        <div>
+          <strong>照片容量</strong>
+          <span>按上传云端后的文字数据估算</span>
+        </div>
+        <button id="closePhotoStorageStatsPanel" type="button" aria-label="关闭照片容量统计">×</button>
+      </div>
+      <div id="photoStorageStatsContent" class="photo-storage-stats-content"></div>
+      <p class="photo-storage-stats-note">估算方法：JPG 压缩后大小 × 1.35。旧照片不会自动重新压缩，只按已有记录估算。</p>
+    </section>
+
+    <footer class="mobile-status">
+      <span id="mobileStatusText">点击指南针回到当前位置</span>
+      <strong id="mobileStatusBadge">待定位</strong>
+    </footer>
+  </main>
+
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/leaflet-rotate@0.2.8/dist/leaflet-rotate-src.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+  <script src="app-config.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
