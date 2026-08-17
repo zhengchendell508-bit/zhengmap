@@ -1182,8 +1182,10 @@
       function renderCards() {
         const grouped = new Map();
         filteredRows.forEach((row) => {
-          if (!grouped.has(row.communityName)) grouped.set(row.communityName, []);
-          grouped.get(row.communityName).push(row);
+          // 必须按 communityId 分组。两个不同公寓即使同名，也不能合并成一张卡。
+          const communityKey = row.communityId || `name:${row.communityName}`;
+          if (!grouped.has(communityKey)) grouped.set(communityKey, []);
+          grouped.get(communityKey).push(row);
         });
 
         els.cardCountText.textContent = `${grouped.size} 个公寓`;
@@ -1192,7 +1194,8 @@
           return;
         }
 
-        els.cards.innerHTML = [...grouped.entries()].map(([communityName, rows]) => {
+        els.cards.innerHTML = [...grouped.values()].map((rows) => {
+          const communityName = rows[0]?.communityName || "未命名公寓";
           const buildingCount = new Set(rows.map((row) => row.buildingId || row.buildingName)).size;
           const numberCount = rows.filter((row) => row.number).length;
           return `

@@ -112,7 +112,10 @@
         <button id="applySettingsBtn" class="secondary-btn" type="button">应用到现有公寓号码</button>
         <button id="exportBtn" type="button">导出 JSON 到云盘</button>
         <label for="importInput">导入 JSON</label>
-        <button id="importJsonBtn" class="secondary-btn" type="button">从云盘导入 JSON</button>
+        <button id="importJsonBtn" class="secondary-btn" type="button">从云盘导入 JSON（普通合并）</button>
+        <button id="migrationImportBtn" class="secondary-btn" type="button">迁移：导入正确 JSON（替换本机）</button>
+        <button id="migrationOverwriteCloudBtn" type="button">迁移：用当前正确数据覆盖云端</button>
+        <input type="file" id="migrationImportInput" accept=".json,application/json" style="display:none">
         <a id="desktopAdminTableLink" class="desktop-admin-table-link" href="admin.html" target="_blank" rel="noopener" aria-label="打开电脑端后台号码总表">打开后台号码总表（电脑端）</a>
         <input type="file" id="importInput" accept=".json,application/json" style="display:none">
       </details>
@@ -257,6 +260,8 @@
         <summary>高级备份</summary>
         <button id="mobileImportJsonBtn" type="button">从云盘导入 JSON</button>
         <button id="mobileExportJsonBtn" type="button">导出 JSON 到云盘</button>
+        <button id="mobileMigrationImportBtn" type="button">迁移：导入正确 JSON（替换本机）</button>
+        <button id="mobileMigrationOverwriteCloudBtn" type="button">迁移：用当前正确数据覆盖云端</button>
       </details>
       <p class="mobile-mode-note">送包裹模式下不能拖动名牌、楼栋和号码；进入编辑模式后才允许新增、修改、拖动和删除。</p>
     </section>

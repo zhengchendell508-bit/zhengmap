@@ -539,7 +539,15 @@ function isGroupFullCommunity(community = getActiveCommunity()) {
 }
 
 function normalizeCommunityType(type) {
-  return "universal";
+  const value = String(type || "").trim().toLowerCase();
+  const aliases = {
+    building: "universal",
+    universal: "universal",
+    flat: "flat",
+    twofloor_suffix: "twofloor_suffix",
+    group_full: "group_full"
+  };
+  return aliases[value] || "universal";
 }
 
 
@@ -3793,17 +3801,31 @@ function mergeBuilding(targetCommunity, incomingBuilding) {
 
 
 function getCommunityTypeLabel(type) {
+  const normalized = normalizeCommunityType(type);
+  if (normalized === "flat") return "独立编号";
+  if (normalized === "twofloor_suffix") return "两层后缀编号";
+  if (normalized === "group_full") return "整组号码";
   return "万用表格";
 }
 
-function applyImportOptionsToData(importedData, options) {
+function applyImportOptionsToData(importedData, options = {}) {
   const data = normalizeLoadedData(cloneData(importedData));
-  const importName = String(options?.name || "").trim() || "导入公寓";
-  const importType = normalizeCommunityType(options?.type);
+  const preserveNames = options.preserveNames !== false;
+  const overrideName = String(options.name || "").trim();
+  const overrideType = options.type ? normalizeCommunityType(options.type) : "";
 
   data.communities.forEach((community, index) => {
-    community.name = data.communities.length === 1 ? importName : `${importName}-${index + 1}`;
-    community.type = importType;
+    // 多公寓 JSON 必须保留每个 community 自己的名字。
+    // 旧代码会先把所有名字用“、”连接，再把整串名字写回每个 community，
+    // 这正是“所有公寓变成一长串统一名称”的根因。
+    if (!preserveNames && overrideName) {
+      community.name = data.communities.length === 1 ? overrideName : `${overrideName}-${index + 1}`;
+    } else {
+      community.name = String(community.name || "").trim() || `导入公寓-${index + 1}`;
+    }
+
+    if (overrideType) community.type = overrideType;
+    else community.type = normalizeCommunityType(community.type);
   });
 
   return data;
@@ -3811,35 +3833,41 @@ function applyImportOptionsToData(importedData, options) {
 
 function promptImportOptions(importedData, fileName = "") {
   const communities = Array.isArray(importedData.communities) ? importedData.communities : [];
-  const detectedNames = communities.map((item) => item.name).filter(Boolean).join("、");
-  const defaultName = detectedNames || getActiveCommunity()?.name || fileName.replace(/\.json$/i, "") || "导入公寓";
+  if (!communities.length) return null;
 
+  // 多公寓文件：绝对不再把所有公寓名称拼成一个名字。
+  if (communities.length > 1) {
+    const previewNames = communities
+      .slice(0, 6)
+      .map((item, index) => String(item?.name || "").trim() || `未命名公寓-${index + 1}`);
+    const moreText = communities.length > previewNames.length ? `\n……另外还有 ${communities.length - previewNames.length} 个公寓` : "";
+    const ok = confirm(
+      `检测到这是一个包含 ${communities.length} 个公寓的 JSON：\n\n${previewNames.join("\n")}${moreText}\n\n将保留每个公寓原来的独立名称和编号模式，不会再把所有地址拼成一个名称。\n\n确认后会合并导入，不会清空原来的资料。`
+    );
+    if (!ok) return null;
+    return { preserveNames: true };
+  }
+
+  // 单公寓文件仍允许用户在导入时改名，但默认保留检测到的名称和类型。
+  const sourceCommunity = communities[0] || {};
+  const detectedName = String(sourceCommunity.name || "").trim();
+  const defaultName = detectedName || getActiveCommunity()?.name || fileName.replace(/\.json$/i, "") || "导入公寓";
   const name = prompt(
-    `请输入这个导入文件对应的公寓名称或地址：
-
-文件名：${fileName || "未命名文件"}
-检测到：${detectedNames || "没有检测到公寓名称"}
-
-例如：1700 / Park Place Apartments / The Trails A1`,
+    `请输入这个导入文件对应的公寓名称或地址：\n\n文件名：${fileName || "未命名文件"}\n检测到：${detectedName || "没有检测到公寓名称"}\n\n直接确定即可保留当前名称。`,
     defaultName
   );
-
   if (!name || !name.trim()) return null;
 
-  const type = "universal";
-
   const ok = confirm(
-    `确认导入设置：
-
-公寓/地址：${name.trim()}
-编号模式：万用表格
-
-确认后会合并导入，不会清空原来的资料。`
+    `确认导入设置：\n\n公寓/地址：${name.trim()}\n编号模式：${getCommunityTypeLabel(sourceCommunity.type)}\n\n确认后会合并导入，不会清空原来的资料。`
   );
-
   if (!ok) return null;
 
-  return { name: name.trim(), type };
+  return {
+    preserveNames: false,
+    name: name.trim(),
+    type: normalizeCommunityType(sourceCommunity.type)
+  };
 }
 
 function mergeImportedData(currentData, importedData) {
@@ -3850,7 +3878,19 @@ function mergeImportedData(currentData, importedData) {
   if (!Array.isArray(merged.communities)) merged.communities = [];
 
   incoming.communities.forEach((incomingCommunity) => {
-    let targetCommunity = merged.communities.find((item) => item.name === incomingCommunity.name && item.type === incomingCommunity.type);
+    const incomingId = String(incomingCommunity.id || "");
+    const incomingNameKey = normalizeCommunitySearchText(incomingCommunity.name);
+    let targetCommunity = incomingId
+      ? merged.communities.find((item) => String(item.id || "") === incomingId)
+      : null;
+
+    // 只有没有可用 ID 时，才用“规范化名称 + 类型”作为兼容旧文件的回退匹配。
+    if (!targetCommunity && incomingNameKey) {
+      targetCommunity = merged.communities.find((item) =>
+        normalizeCommunitySearchText(item.name) === incomingNameKey &&
+        normalizeCommunityType(item.type) === normalizeCommunityType(incomingCommunity.type)
+      );
+    }
 
     if (!targetCommunity) {
       const communityToAdd = cloneData(incomingCommunity);
@@ -4030,6 +4070,8 @@ const CLOUD_COLLECTION_NAME = "community_map_cloud_data";
 const CLOUD_DOCUMENT_ID = "mainData";
 const CLOUD_UPLOAD_DELAY_MS = 1200;
 const CLOUD_LOCAL_EDIT_PROTECT_MS = 10000;
+const CLOUD_MIGRATION_VERSION = 1;
+let cloudMigrationReady = false;
 
 const firebaseConfig = {
   apiKey: "AIzaSyBuikOB_MbGp9RzBHby2a4xK-Tyy7DKsu8",
@@ -4114,6 +4156,7 @@ function getCloudPayload() {
   return {
     appName: "xunbaohuo-map-navigation",
     schemaVersion: 3,
+    migrationVersion: CLOUD_MIGRATION_VERSION,
     updatedAtMs: Date.now(),
     updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
     deviceId: getCloudDeviceId(),
@@ -4213,6 +4256,11 @@ function applyCloudDataToLocal(remoteData, remoteUpdatedAtMs, remoteDeviceId) {
 
 async function uploadCurrentDataToCloud() {
   if (!initialDataLoadDone || cloudApplyingRemote) return;
+  if (!cloudMigrationReady) {
+    cloudUploadQueued = false;
+    updateCloudSyncStatus("迁移保护中：旧云端数据不会覆盖本机；请先导入正确 JSON，再手动覆盖云端", "warning");
+    return;
+  }
 
   if (!navigator.onLine) {
     cloudUploadQueued = true;
@@ -4262,7 +4310,7 @@ async function uploadCurrentDataToCloud() {
 }
 
 function queueCloudAutoUpload() {
-  if (!initialDataLoadDone || cloudApplyingRemote) return;
+  if (!initialDataLoadDone || cloudApplyingRemote || !cloudMigrationReady) return;
   clearTimeout(cloudUploadTimer);
   cloudUploadTimer = setTimeout(() => {
     cloudUploadTimer = null;
@@ -4296,18 +4344,24 @@ async function startCloudAutoSync() {
     cloudSnapshotUnsubscribe = ref.onSnapshot(
       (snapshot) => {
         if (!snapshot.exists) {
+          cloudMigrationReady = false;
           cloudLastSyncedJson = "";
           cloudLastRemoteUpdatedAtMs = 0;
-          if (hasUsefulLocalCloudData()) {
-            updateCloudSyncStatus("云端为空，正在建立同步资料...", "info");
-            queueCloudAutoUpload();
-          } else {
-            updateCloudSyncStatus("已连接，暂无地图资料", "info");
-          }
+          updateCloudSyncStatus("云端为空，迁移保护已开启。导入正确 JSON 后可手动建立新的云端资料", "warning");
           return;
         }
 
         const remote = snapshot.data() || {};
+        const remoteMigrationVersion = Number(remote.migrationVersion || 0);
+        if (remoteMigrationVersion < CLOUD_MIGRATION_VERSION) {
+          cloudMigrationReady = false;
+          cloudLastSyncedJson = "";
+          cloudLastRemoteUpdatedAtMs = getRemoteUpdatedTime(remote) || 0;
+          updateCloudSyncStatus("检测到旧云端数据，已自动锁定，不会覆盖本机。请导入正确 JSON 后点击‘覆盖云端’", "warning");
+          return;
+        }
+
+        cloudMigrationReady = true;
         const remoteData = normalizeRemoteCloudData(remote);
         const remoteUpdatedAtMs = getRemoteUpdatedTime(remote) || Date.now();
 
@@ -4323,6 +4377,110 @@ async function startCloudAutoSync() {
     console.error("云端连接失败：", error);
     updateCloudSyncStatus(getCloudFriendlyError(error, "连接失败"), "error");
     cloudListenerStarted = false;
+  }
+}
+
+
+function looksLikePollutedCommunityName(name) {
+  const text = String(name || "");
+  const separators = (text.match(/、/g) || []).length;
+  return text.length > 140 || separators >= 3;
+}
+
+function validateMigrationData(data) {
+  const communities = Array.isArray(data?.communities) ? data.communities : [];
+  const useful = communities.filter((community) => Array.isArray(community.buildings) && community.buildings.length > 0);
+  if (!useful.length) return { ok: false, message: "这个 JSON 没有可用的公寓/号码资料。" };
+  const polluted = communities.filter((community) => looksLikePollutedCommunityName(community?.name));
+  if (polluted.length) {
+    return { ok: false, message: `检测到 ${polluted.length} 个公寓名称仍像旧的串接错误。请不要用这份文件覆盖云端。` };
+  }
+  return { ok: true, usefulCount: useful.length };
+}
+
+function openMigrationImportPicker() {
+  const input = document.getElementById("migrationImportInput");
+  if (input) input.click();
+}
+
+function importMigrationReplacementFile(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function (event) {
+    try {
+      const rawData = JSON.parse(String(event.target?.result || "{}"));
+      const replacement = normalizeLoadedData(rawData);
+      const check = validateMigrationData(replacement);
+      if (!check.ok) {
+        alert(`迁移导入已阻止：${check.message}`);
+        return;
+      }
+
+      const ok = confirm(
+        `这一步会用所选 JSON 完全替换本机当前地图资料（不会上传云端）。\n\n检测到 ${replacement.communities.length} 个公寓，其中 ${check.usefulCount} 个有号码资料。\n\n确定继续吗？`
+      );
+      if (!ok) return;
+
+      saveSafetyBackup();
+      appData = replacement;
+      selectedBuildingId = null;
+      selectedPositions.clear();
+      communitySearchCommunityId = null;
+      communitySearchTargets = [];
+      deliveryDeliveredKeys = new Set();
+      deliveryCancelledKeys = new Set();
+      displayMode = "communities";
+      saveData({ skipCloudSync: true });
+      refreshMapAfterCloudDataChange();
+      updateCloudSyncStatus("正确 JSON 已载入本机；旧云端仍被锁定，尚未覆盖", "warning");
+      alert("正确 JSON 已替换本机资料。请先检查地图和公寓名称；确认无误后，再点击‘用当前正确数据覆盖云端’。");
+    } catch (error) {
+      console.error(error);
+      alert("迁移导入失败：JSON 格式不正确。\n" + (error?.message || error));
+    } finally {
+      const input = document.getElementById("migrationImportInput");
+      if (input) input.value = "";
+    }
+  };
+  reader.readAsText(file, "utf-8");
+}
+
+async function overwriteCloudWithCurrentMigrationData() {
+  const check = validateMigrationData(appData);
+  if (!check.ok) {
+    alert(`不能覆盖云端：${check.message}\n\n请先用“迁移：导入正确 JSON（替换本机）”载入修好的文件。`);
+    return;
+  }
+
+  const ok = confirm(
+    `危险操作确认：\n\n将用当前本机的 ${appData.communities.length} 个公寓完整覆盖 Firebase 云端旧资料。\n覆盖后，旧的串接数据将不再作为主云端数据生效。\n\n请确认你已经检查过公寓名称和号码。是否继续？`
+  );
+  if (!ok) return;
+
+  const buttons = [
+    document.getElementById("migrationOverwriteCloudBtn"),
+    document.getElementById("mobileMigrationOverwriteCloudBtn")
+  ].filter(Boolean);
+  buttons.forEach((button) => button.disabled = true);
+  updateCloudSyncStatus("正在用当前正确数据覆盖旧云端...", "info");
+
+  try {
+    const ref = await getCloudDocumentReference();
+    const payload = getCloudPayload();
+    payload.migrationCompletedAtMs = Date.now();
+    await ref.set(payload);
+    cloudMigrationReady = true;
+    cloudLastSyncedJson = getLocalCloudJson();
+    cloudLastRemoteUpdatedAtMs = payload.updatedAtMs;
+    clearLocalCloudPendingEdit(cloudLastSyncedJson);
+    updateCloudSyncStatus(`迁移完成，云端已替换 ${formatCloudSyncTime(payload.updatedAtMs)}`, "success");
+    alert("迁移完成：当前正确数据已经覆盖云端旧资料。以后打开这个新版网页，会恢复正常自动同步。");
+  } catch (error) {
+    console.error("迁移覆盖云端失败：", error);
+    updateCloudSyncStatus(getCloudFriendlyError(error, "迁移覆盖失败"), "error");
+    alert("覆盖云端失败：" + (error?.message || error));
+  } finally {
+    buttons.forEach((button) => button.disabled = false);
   }
 }
 
@@ -5205,6 +5363,16 @@ document.getElementById("undoBtn").addEventListener("click", undoLastAction);
 document.getElementById("exportBtn").addEventListener("click", exportMarkers);
 const importJsonBtn = document.getElementById("importJsonBtn");
 if (importJsonBtn) importJsonBtn.addEventListener("click", openJsonImportPicker);
+const migrationImportBtn = document.getElementById("migrationImportBtn");
+const migrationImportInput = document.getElementById("migrationImportInput");
+const migrationOverwriteCloudBtn = document.getElementById("migrationOverwriteCloudBtn");
+const mobileMigrationImportBtn = document.getElementById("mobileMigrationImportBtn");
+const mobileMigrationOverwriteCloudBtn = document.getElementById("mobileMigrationOverwriteCloudBtn");
+if (migrationImportBtn) migrationImportBtn.addEventListener("click", openMigrationImportPicker);
+if (mobileMigrationImportBtn) mobileMigrationImportBtn.addEventListener("click", openMigrationImportPicker);
+if (migrationImportInput) migrationImportInput.addEventListener("change", (event) => importMigrationReplacementFile(event.target.files && event.target.files[0]));
+if (migrationOverwriteCloudBtn) migrationOverwriteCloudBtn.addEventListener("click", overwriteCloudWithCurrentMigrationData);
+if (mobileMigrationOverwriteCloudBtn) mobileMigrationOverwriteCloudBtn.addEventListener("click", overwriteCloudWithCurrentMigrationData);
 document.getElementById("applySettingsBtn").addEventListener("click", applyCurrentSettingsToAllMarkers);
 document.getElementById("navButton").addEventListener("click", toggleNavigation);
 document.getElementById("addHereBtn").addEventListener("click", addMarkerAtCenter);
