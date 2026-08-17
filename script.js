@@ -497,19 +497,86 @@ function decodeGooglePolyline(encoded) {
   return coordinates;
 }
 
-function renderDeliveryPlannedRoute(encodedPolylines) {
+function projectPointToRouteSegment(target, a, b) {
+  const lat0 = Number(target.lat) * Math.PI / 180;
+  const cosLat = Math.max(0.2, Math.cos(lat0));
+  const tx = Number(target.lng) * cosLat;
+  const ty = Number(target.lat);
+  const ax = Number(a[1]) * cosLat;
+  const ay = Number(a[0]);
+  const bx = Number(b[1]) * cosLat;
+  const by = Number(b[0]);
+  const dx = bx - ax;
+  const dy = by - ay;
+  const denom = dx * dx + dy * dy;
+  let t = denom > 0 ? ((tx - ax) * dx + (ty - ay) * dy) / denom : 0;
+  t = Math.max(0, Math.min(1, t));
+  return {
+    lat: ay + (by - ay) * t,
+    lng: (ax + (bx - ax) * t) / cosLat
+  };
+}
+
+function findNearestPointOnRoute(targetLatLng, routeGroups) {
+  const target = { lat: Number(targetLatLng.lat), lng: Number(targetLatLng.lng) };
+  let nearest = null;
+  let nearestDistance = Infinity;
+  (routeGroups || []).forEach((points) => {
+    for (let i = 1; i < points.length; i += 1) {
+      const candidate = projectPointToRouteSegment(target, points[i - 1], points[i]);
+      const distance = haversineMeters(target, candidate);
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearest = candidate;
+      }
+    }
+  });
+  return nearest ? { ...nearest, distanceMeters: nearestDistance } : null;
+}
+
+function renderDeliveryPlannedRoute(encodedPolylines, orderedTargets = []) {
   if (deliveryPlannedRouteLayer && map && map.hasLayer(deliveryPlannedRouteLayer)) map.removeLayer(deliveryPlannedRouteLayer);
   const groups = (Array.isArray(encodedPolylines) ? encodedPolylines : []).map(decodeGooglePolyline).filter((points) => points.length > 1);
   if (!groups.length) {
     deliveryPlannedRouteLayer = null;
     return;
   }
-  deliveryPlannedRouteLayer = L.layerGroup(groups.map((points) => L.polyline(points, {
+
+  const layers = groups.map((points) => L.polyline(points, {
     weight: 6,
     opacity: 0.86,
     lineCap: "round",
     lineJoin: "round"
-  }))).addTo(map);
+  }));
+
+  // Google 的蓝色实线只代表可驾驶道路；每个号码仍以用户在地图上放置的精确坐标为准。
+  // 本地从驾驶路线最近点到号码精确位置补一条“黑色细虚点线”，只作为最后接驳方向提示，
+  // 不额外请求 Google WALK API，也不表示真实的人行道路。
+  (Array.isArray(orderedTargets) ? orderedTargets : []).forEach((target) => {
+    const targetLatLng = getDeliveryTargetLatLng(target);
+    if (!targetLatLng) return;
+    const nearest = findNearestPointOnRoute(targetLatLng, groups);
+    if (!nearest || !Number.isFinite(nearest.distanceMeters)) return;
+
+    // 几乎与驾驶线完全重合时没有可见接驳段，避免生成零长度折线。
+    if (nearest.distanceMeters < 0.5) return;
+
+    layers.push(L.polyline([
+      [nearest.lat, nearest.lng],
+      [Number(targetLatLng.lat), Number(targetLatLng.lng)]
+    ], {
+      color: "#111111",
+      weight: 2,
+      opacity: 0.82,
+      dashArray: "1 6",
+      lineCap: "round",
+      lineJoin: "round",
+      interactive: false,
+      className: "delivery-walk-connector"
+    }));
+  });
+
+  deliveryPlannedRouteLayer = L.layerGroup(layers).addTo(map);
 }
 
 function makeRoutePointFromTarget(target) {
@@ -592,7 +659,7 @@ async function planDeliveryRoute(options = {}) {
     deliveryPlannedRouteSignature = deliveryRouteTargetsSignature(pendingTargets);
     deliveryRouteLastDistanceMeters = distanceMeters;
     deliveryRouteLastDurationSeconds = durationSeconds;
-    renderDeliveryPlannedRoute(encodedPolylines);
+    renderDeliveryPlannedRoute(encodedPolylines, orderedTargets);
     renderDeliveryRoutePanel();
     updateDeliveryRoutePlanStatus();
 
@@ -612,6 +679,11 @@ async function planDeliveryRoute(options = {}) {
     } else {
       updateLocationStatus(`已规划 ${orderedTargets.length} 个号码的闭环路线。偏离路线不会自动重算。`, "success");
     }
+
+    // 只有真正成功画出路线后才自动收起“本次号码”大窗口；失败时保持打开方便查看错误。
+    deliveryPendingPanelOpen = false;
+    deliveryDeliveredPanelOpen = false;
+    renderDeliveryRoutePanel();
   } catch (error) {
     console.error("路线规划失败：", error);
     updateDeliveryRoutePlanStatus(`路线：规划失败 · ${error.message || "未知错误"}`);

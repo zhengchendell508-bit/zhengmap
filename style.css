@@ -3489,3 +3489,72 @@ body.mobile-edit-mode .mobile-mode-panel .mobile-mode-primary {
 @media (max-width: 820px) {
   .routes-api-mini-status { font-size: 9px; }
 }
+
+/* V2 路线操作区：规划路线为主按钮，结束送货次级，新增为小按钮 */
+@media (max-width: 820px) {
+  .delivery-route-card {
+    width: min(330px, calc(100vw - 24px));
+    max-height: min(64vh, 520px);
+  }
+  .delivery-route-card-header {
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .delivery-route-card-header > .panel-mini-close {
+    margin-left: auto;
+    background: #fff !important;
+    color: #475569 !important;
+    border: 1px solid rgba(71, 85, 105, .18) !important;
+  }
+  .delivery-route-primary-actions {
+    display: grid;
+    gap: 8px;
+    margin-bottom: 9px;
+  }
+  .delivery-route-primary-actions .delivery-route-plan-btn {
+    width: 100%;
+    min-height: 52px;
+    border: 0;
+    border-radius: 14px;
+    background: #1479e8;
+    color: #fff;
+    font-size: 20px;
+    font-weight: 1000;
+    letter-spacing: .5px;
+    box-shadow: 0 6px 16px rgba(20, 121, 232, .28);
+  }
+  .delivery-route-secondary-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+  }
+  .delivery-route-secondary-actions .delivery-route-end-btn {
+    min-height: 42px;
+    border: 0;
+    border-radius: 13px;
+    background: #475569;
+    color: #fff;
+    font-size: 16px;
+    font-weight: 950;
+  }
+  .delivery-route-secondary-actions .delivery-route-add-btn {
+    min-width: 76px;
+    min-height: 42px;
+    padding: 0 12px;
+    border: 1px solid rgba(20, 121, 232, .22);
+    border-radius: 13px;
+    background: #fff;
+    color: #1479e8;
+    font-size: 14px;
+    font-weight: 950;
+  }
+  .delivery-route-primary-actions button:disabled {
+    opacity: .55;
+    cursor: wait;
+  }
+}
+
+/* 道路实线到号码精确位置：本地黑色细虚点接驳线（不请求 WALK API） */
+.delivery-walk-connector {
+  pointer-events: none;
+}
