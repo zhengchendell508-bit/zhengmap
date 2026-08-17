@@ -3456,3 +3456,36 @@ body.mobile-edit-mode .mobile-mode-panel .mobile-mode-primary {
     font-weight: 900;
   }
 }
+
+/* Routes API 本地计数与密钥管理 */
+.routes-api-mini-status {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 7px;
+  margin: -2px 0 8px;
+  padding: 2px 3px;
+  color: #64748b;
+  font-size: 9px;
+  line-height: 1.25;
+  font-weight: 700;
+}
+.routes-api-mini-status span { white-space: nowrap; }
+.routes-api-mini-status button {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: #2563eb;
+  padding: 1px 2px;
+  min-width: 0;
+  min-height: 0;
+  font: inherit;
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.routes-api-mini-status button:last-child { color: #64748b; }
+@media (max-width: 820px) {
+  .routes-api-mini-status { font-size: 9px; }
+}

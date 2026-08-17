@@ -118,6 +118,7 @@ let pendingBuildingPhotoBuildingId = null;
 let viewingBuildingPhotoBuildingId = null;
 
 const ROUTES_API_KEY_STORAGE_KEY = "xunbaohuoRoutesApiKey";
+const ROUTES_API_USAGE_STORAGE_KEY = "xunbaohuoRoutesApiUsageV1";
 const ROUTES_API_ENDPOINT = "https://routes.googleapis.com/directions/v2:computeRoutes";
 const DELIVERY_ROUTE_MAX_OPTIMIZED_STOPS = 25;
 const DELIVERY_ROUTE_CHUNK_POINT_LIMIT = 27; // origin + 25 intermediates + destination
@@ -148,6 +149,134 @@ function saveStoredRoutesApiKey(value) {
   }
 }
 
+function getRoutesApiKeyFingerprint(key) {
+  const text = String(key || "");
+  if (!text) return "none";
+  let hash = 2166136261;
+  for (let i = 0; i < text.length; i += 1) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return `k${(hash >>> 0).toString(16)}`;
+}
+
+function getRoutesApiUsageStore() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(ROUTES_API_USAGE_STORAGE_KEY) || "{}");
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch (error) {
+    return {};
+  }
+}
+
+function saveRoutesApiUsageStore(store) {
+  try {
+    localStorage.setItem(ROUTES_API_USAGE_STORAGE_KEY, JSON.stringify(store || {}));
+  } catch (error) {
+    console.warn("保存 Routes API 本地计数失败：", error);
+  }
+}
+
+function getLocalRoutesDateKeys() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return { monthKey: `${y}-${m}`, dayKey: `${y}-${m}-${d}` };
+}
+
+function normalizeRoutesApiUsageRecord(record) {
+  const keys = getLocalRoutesDateKeys();
+  const next = record && typeof record === "object" ? { ...record } : {};
+  next.totalRequests = Number(next.totalRequests) || 0;
+  next.successRequests = Number(next.successRequests) || 0;
+  next.failedRequests = Number(next.failedRequests) || 0;
+  if (next.monthKey !== keys.monthKey) {
+    next.monthKey = keys.monthKey;
+    next.monthRequests = 0;
+  }
+  if (next.dayKey !== keys.dayKey) {
+    next.dayKey = keys.dayKey;
+    next.dayRequests = 0;
+  }
+  next.monthRequests = Number(next.monthRequests) || 0;
+  next.dayRequests = Number(next.dayRequests) || 0;
+  return next;
+}
+
+function getCurrentRoutesApiUsage() {
+  const key = getStoredRoutesApiKey();
+  if (!key) return normalizeRoutesApiUsageRecord({});
+  const store = getRoutesApiUsageStore();
+  return normalizeRoutesApiUsageRecord(store[getRoutesApiKeyFingerprint(key)]);
+}
+
+function recordRoutesApiRequest(key, outcome = "attempt") {
+  const text = String(key || "").trim();
+  if (!text) return;
+  const store = getRoutesApiUsageStore();
+  const id = getRoutesApiKeyFingerprint(text);
+  const record = normalizeRoutesApiUsageRecord(store[id]);
+  if (outcome === "attempt") {
+    record.totalRequests += 1;
+    record.monthRequests += 1;
+    record.dayRequests += 1;
+    record.lastRequestAt = Date.now();
+  } else if (outcome === "success") {
+    record.successRequests += 1;
+  } else if (outcome === "failed") {
+    record.failedRequests += 1;
+  }
+  store[id] = record;
+  saveRoutesApiUsageStore(store);
+  updateRoutesApiMiniStatus();
+}
+
+function getRoutesApiMaskedKey() {
+  const key = getStoredRoutesApiKey();
+  if (!key) return "未设置";
+  const tail = key.slice(-4);
+  return `••••${tail}`;
+}
+
+function updateRoutesApiMiniStatus() {
+  if (!routesApiUsageText || !routesApiKeyText) return;
+  const key = getStoredRoutesApiKey();
+  if (!key) {
+    routesApiUsageText.innerText = "API：尚未设置";
+    routesApiKeyText.innerText = "Key：未设置";
+    return;
+  }
+  const usage = getCurrentRoutesApiUsage();
+  const failedText = usage.failedRequests ? `｜失败 ${usage.failedRequests}` : "";
+  routesApiUsageText.innerText = `API：本月 ${usage.monthRequests} 次｜今天 ${usage.dayRequests} 次${failedText}`;
+  routesApiKeyText.innerText = `Key：${getRoutesApiMaskedKey()}`;
+}
+
+function changeRoutesApiKey() {
+  const current = getStoredRoutesApiKey();
+  const entered = prompt("输入新的 Google Routes API Key。\n只保存在当前设备浏览器，不会写进 GitHub 文件。", "");
+  const next = String(entered || "").trim();
+  if (!next || next === current) {
+    updateRoutesApiMiniStatus();
+    return;
+  }
+  saveStoredRoutesApiKey(next);
+  updateRoutesApiMiniStatus();
+  updateLocationStatus(`Routes API Key 已更换为 ${getRoutesApiMaskedKey()}`, "success");
+}
+
+function clearRoutesApiKey() {
+  const current = getStoredRoutesApiKey();
+  if (!current) return;
+  if (!confirm(`确定清除当前 Routes API Key（${getRoutesApiMaskedKey()}）吗？\n本地请求计数会保留；以后重新填回同一把 Key 时仍可继续看到。`)) return;
+  try {
+    localStorage.removeItem(ROUTES_API_KEY_STORAGE_KEY);
+  } catch (error) {}
+  updateRoutesApiMiniStatus();
+  updateLocationStatus("已清除当前 Routes API Key", "success");
+}
+
 function ensureRoutesApiKey() {
   const existing = getStoredRoutesApiKey();
   if (existing) return existing;
@@ -155,6 +284,7 @@ function ensureRoutesApiKey() {
   if (!entered || !String(entered).trim()) return "";
   const key = String(entered).trim();
   saveStoredRoutesApiKey(key);
+  updateRoutesApiMiniStatus();
   return key;
 }
 
@@ -302,15 +432,22 @@ async function callGoogleComputeRoutes(apiKey, points, optimize = false) {
     ? "routes.distanceMeters,routes.duration,routes.polyline.encodedPolyline,routes.optimizedIntermediateWaypointIndex"
     : "routes.distanceMeters,routes.duration,routes.polyline.encodedPolyline";
 
-  const response = await fetch(ROUTES_API_ENDPOINT, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Goog-Api-Key": apiKey,
-      "X-Goog-FieldMask": fieldMask
-    },
-    body: JSON.stringify(body)
-  });
+  recordRoutesApiRequest(apiKey, "attempt");
+  let response;
+  try {
+    response = await fetch(ROUTES_API_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": apiKey,
+        "X-Goog-FieldMask": fieldMask
+      },
+      body: JSON.stringify(body)
+    });
+  } catch (networkError) {
+    recordRoutesApiRequest(apiKey, "failed");
+    throw networkError;
+  }
 
   let data = null;
   try {
@@ -319,9 +456,11 @@ async function callGoogleComputeRoutes(apiKey, points, optimize = false) {
     data = null;
   }
   if (!response.ok) {
+    recordRoutesApiRequest(apiKey, "failed");
     const message = data?.error?.message || `Routes API 请求失败（HTTP ${response.status}）`;
     throw new Error(message);
   }
+  recordRoutesApiRequest(apiKey, "success");
   const route = data?.routes?.[0];
   if (!route?.polyline?.encodedPolyline) throw new Error("Google 没有返回可显示的路线");
   return route;
@@ -651,6 +790,11 @@ const addDeliveryRouteNumberBtn = document.getElementById("addDeliveryRouteNumbe
 const planDeliveryRouteBtn = document.getElementById("planDeliveryRouteBtn");
 const endDeliveryRouteBtn = document.getElementById("endDeliveryRouteBtn");
 const deliveryRoutePlanStatus = document.getElementById("deliveryRoutePlanStatus");
+const routesApiMiniStatus = document.getElementById("routesApiMiniStatus");
+const routesApiUsageText = document.getElementById("routesApiUsageText");
+const routesApiKeyText = document.getElementById("routesApiKeyText");
+const changeRoutesApiKeyBtn = document.getElementById("changeRoutesApiKeyBtn");
+const clearRoutesApiKeyBtn = document.getElementById("clearRoutesApiKeyBtn");
 const pendingRouteEmptyState = document.getElementById("pendingRouteEmptyState");
 const finishDeliveryRouteBtn = document.getElementById("finishDeliveryRouteBtn");
 const deliveryToast = document.getElementById("deliveryToast");
@@ -6116,7 +6260,10 @@ if (closePendingRoutePanelBtn) closePendingRoutePanelBtn.addEventListener("click
 if (toggleDeliveredRouteListBtn) toggleDeliveredRouteListBtn.addEventListener("click", toggleDeliveredDeliveryPanel);
 if (addDeliveryRouteNumberBtn) addDeliveryRouteNumberBtn.addEventListener("click", promptAddDeliveryRouteNumber);
 if (planDeliveryRouteBtn) planDeliveryRouteBtn.addEventListener("click", () => planDeliveryRoute({ reason: "manual" }));
+if (changeRoutesApiKeyBtn) changeRoutesApiKeyBtn.addEventListener("click", changeRoutesApiKey);
+if (clearRoutesApiKeyBtn) clearRoutesApiKeyBtn.addEventListener("click", clearRoutesApiKey);
 if (endDeliveryRouteBtn) endDeliveryRouteBtn.addEventListener("click", finishCurrentDeliveryRoute);
+updateRoutesApiMiniStatus();
 if (finishDeliveryRouteBtn) finishDeliveryRouteBtn.addEventListener("click", finishCurrentDeliveryRoute);
 if (undoDeliveryHideBtn) undoDeliveryHideBtn.addEventListener("click", undoLastDeliveryHide);
 if (closeDeliveryToastBtn) closeDeliveryToastBtn.addEventListener("click", hideDeliveryToast);
