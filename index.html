@@ -64,7 +64,10 @@
         <div id="pendingRouteListPanel" class="delivery-route-card" aria-label="本次号码列表">
           <div class="delivery-route-card-header">
             <strong>待送号码 (<span id="pendingRouteCount">0</span>)</strong>
-            <button id="addDeliveryRouteNumberBtn" type="button">＋ 增加</button>
+            <div class="delivery-route-card-header-actions">
+              <button id="addDeliveryRouteNumberBtn" type="button">＋ 增加</button>
+              <button id="closePendingRoutePanelBtn" class="panel-mini-close" type="button" aria-label="关闭本次号码列表">×</button>
+            </div>
           </div>
           <div id="pendingRouteList" class="delivery-route-list"></div>
           <div id="pendingRouteEmptyState" class="delivery-route-finish-state" hidden>
@@ -91,6 +94,10 @@
 
 
     <aside id="settingsPanel" class="settings-panel" aria-label="标记设置">
+      <div class="settings-panel-header">
+        <strong>设置</strong>
+        <button id="closeSettingsPanelBtn" class="settings-panel-close" type="button" aria-label="关闭设置">×</button>
+      </div>
       <label for="fontSize">新建标记字号: <span id="fontSizeValue">11</span></label>
       <input type="range" id="fontSize" min="5" max="15" value="11">
 
@@ -141,7 +148,7 @@
         </label>
         <label>
           <span>公寓号</span>
-          <input id="universalUnitInput" type="text" inputmode="text" placeholder="例如 01-10、101 103、A B C、A-G、3A；可配合大楼/楼层" autocomplete="off">
+          <input id="universalUnitInput" type="text" inputmode="text" placeholder="例如 01-10、101 103；无大楼/楼层时可 A B C 或 A-G" autocomplete="off">
         </label>
       </div>
 

@@ -253,6 +253,7 @@ const showAllCommunityNumbersBtn = document.getElementById("showAllCommunityNumb
 const showCommunityBuildingsOnlyBtn = document.getElementById("showCommunityBuildingsOnly");
 const deliveryRoutePanel = document.getElementById("deliveryRoutePanel");
 const togglePendingRouteListBtn = document.getElementById("togglePendingRouteList");
+const closePendingRoutePanelBtn = document.getElementById("closePendingRoutePanelBtn");
 const toggleDeliveredRouteListBtn = document.getElementById("toggleDeliveredRouteList");
 const pendingRouteListPanel = document.getElementById("pendingRouteListPanel");
 const deliveredRouteListPanel = document.getElementById("deliveredRouteListPanel");
@@ -748,6 +749,20 @@ function renderCommunityOptions(list, showPanel = false) {
 
   if (!communitySuggestionPanel) return;
   communitySuggestionPanel.innerHTML = "";
+
+  const suggestionCloseBtn = document.createElement("button");
+  suggestionCloseBtn.type = "button";
+  suggestionCloseBtn.className = "community-suggestion-close";
+  suggestionCloseBtn.setAttribute("aria-label", "关闭地址列表");
+  suggestionCloseBtn.innerText = "×";
+  suggestionCloseBtn.addEventListener("mousedown", (event) => event.preventDefault());
+  suggestionCloseBtn.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    hideCommunitySuggestionPanel();
+    if (communitySelect) communitySelect.blur();
+  });
+  communitySuggestionPanel.appendChild(suggestionCloseBtn);
 
   communities.forEach((community) => {
     const button = document.createElement("button");
@@ -1558,7 +1573,7 @@ function openDeliveryActionPopup(marker, target) {
   if (!latlng) return;
 
   L.popup({
-    closeButton: false,
+    closeButton: true,
     autoPan: true,
     className: "delivery-action-popup-shell",
     offset: [0, -8]
@@ -2311,7 +2326,7 @@ function openBuildingPhotoActionPopup(marker, building) {
   if (!latlng) return;
 
   L.popup({
-    closeButton: false,
+    closeButton: true,
     autoPan: true,
     className: "building-photo-action-popup-shell",
     offset: [0, -8]
@@ -5645,6 +5660,16 @@ if (mobileOpenSettingsBtn) mobileOpenSettingsBtn.addEventListener("click", funct
 document.getElementById("settingsBtn").addEventListener("click", function () {
   settingsPanel.classList.toggle("is-open");
 });
+const closeSettingsPanelBtn = document.getElementById("closeSettingsPanelBtn");
+if (closeSettingsPanelBtn) {
+  closeSettingsPanelBtn.addEventListener("click", function () {
+    settingsPanel.classList.remove("is-open");
+  });
+}
+
+
+
+// 关闭规则：各窗口使用自身的关闭键，不使用点击空白处自动关闭。
 
 document.getElementById("undoBtn").addEventListener("click", undoLastAction);
 document.getElementById("exportBtn").addEventListener("click", exportMarkers);
@@ -5684,6 +5709,13 @@ if (confirmCommunityNumberSearchBtn) confirmCommunityNumberSearchBtn.addEventLis
 if (showAllCommunityNumbersBtn) showAllCommunityNumbersBtn.addEventListener("click", showAllNumbersForCommunity);
 if (showCommunityBuildingsOnlyBtn) showCommunityBuildingsOnlyBtn.addEventListener("click", showCommunityBuildingsOnly);
 if (togglePendingRouteListBtn) togglePendingRouteListBtn.addEventListener("click", togglePendingDeliveryPanel);
+if (closePendingRoutePanelBtn) closePendingRoutePanelBtn.addEventListener("click", function (event) {
+  event.preventDefault();
+  event.stopPropagation();
+  deliveryPendingPanelOpen = false;
+  deliveryDeliveredPanelOpen = false;
+  renderDeliveryRoutePanel();
+});
 if (toggleDeliveredRouteListBtn) toggleDeliveredRouteListBtn.addEventListener("click", toggleDeliveredDeliveryPanel);
 if (addDeliveryRouteNumberBtn) addDeliveryRouteNumberBtn.addEventListener("click", promptAddDeliveryRouteNumber);
 if (undoDeliveryHideBtn) undoDeliveryHideBtn.addEventListener("click", undoLastDeliveryHide);
