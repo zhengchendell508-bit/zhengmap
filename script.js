@@ -117,6 +117,390 @@ let communitySuggestionCloseTimer = null;
 let pendingBuildingPhotoBuildingId = null;
 let viewingBuildingPhotoBuildingId = null;
 
+const ROUTES_API_KEY_STORAGE_KEY = "xunbaohuoRoutesApiKey";
+const ROUTES_API_ENDPOINT = "https://routes.googleapis.com/directions/v2:computeRoutes";
+const DELIVERY_ROUTE_MAX_OPTIMIZED_STOPS = 25;
+const DELIVERY_ROUTE_CHUNK_POINT_LIMIT = 27; // origin + 25 intermediates + destination
+let deliveryPlannedRouteLayer = null;
+let deliveryPlannedRouteStartLatLng = null;
+let deliveryPlannedRouteOrderedKeys = [];
+let deliveryPlannedRouteSignature = "";
+let deliveryRoutePlanning = false;
+let deliveryRouteLastDistanceMeters = 0;
+let deliveryRouteLastDurationSeconds = 0;
+
+function getStoredRoutesApiKey() {
+  try {
+    return String(localStorage.getItem(ROUTES_API_KEY_STORAGE_KEY) || "").trim();
+  } catch (error) {
+    return "";
+  }
+}
+
+function saveStoredRoutesApiKey(value) {
+  const key = String(value || "").trim();
+  if (!key) return false;
+  try {
+    localStorage.setItem(ROUTES_API_KEY_STORAGE_KEY, key);
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
+function ensureRoutesApiKey() {
+  const existing = getStoredRoutesApiKey();
+  if (existing) return existing;
+  const entered = prompt("请输入新的 Google Routes API Key。\n密钥只保存在当前设备浏览器的本地存储中，不会写进 GitHub 文件。", "");
+  if (!entered || !String(entered).trim()) return "";
+  const key = String(entered).trim();
+  saveStoredRoutesApiKey(key);
+  return key;
+}
+
+function clearDeliveryPlannedRoute(options = {}) {
+  if (deliveryPlannedRouteLayer && map && map.hasLayer(deliveryPlannedRouteLayer)) {
+    map.removeLayer(deliveryPlannedRouteLayer);
+  }
+  deliveryPlannedRouteLayer = null;
+  deliveryPlannedRouteOrderedKeys = [];
+  deliveryPlannedRouteSignature = "";
+  deliveryRouteLastDistanceMeters = 0;
+  deliveryRouteLastDurationSeconds = 0;
+  if (!options.keepStart) deliveryPlannedRouteStartLatLng = null;
+  updateDeliveryRoutePlanStatus();
+}
+
+function updateDeliveryRoutePlanStatus(message = "") {
+  if (!deliveryRoutePlanStatus) return;
+  if (message) {
+    deliveryRoutePlanStatus.innerText = message;
+    return;
+  }
+  if (deliveryRoutePlanning) {
+    deliveryRoutePlanStatus.innerText = "路线：正在规划...";
+    return;
+  }
+  if (!deliveryPlannedRouteOrderedKeys.length) {
+    deliveryRoutePlanStatus.innerText = "路线：尚未规划";
+    return;
+  }
+  const km = deliveryRouteLastDistanceMeters > 0 ? (deliveryRouteLastDistanceMeters / 1000).toFixed(deliveryRouteLastDistanceMeters >= 10000 ? 1 : 2) : "";
+  const min = deliveryRouteLastDurationSeconds > 0 ? Math.max(1, Math.round(deliveryRouteLastDurationSeconds / 60)) : 0;
+  const extra = [km ? `${km} km` : "", min ? `约 ${min} 分钟` : ""].filter(Boolean).join(" · ");
+  deliveryRoutePlanStatus.innerText = `路线：已规划 ${deliveryPlannedRouteOrderedKeys.length} 站${extra ? ` · ${extra}` : ""}`;
+}
+
+function getDeliveryRouteOrderIndex(target) {
+  const key = getDeliveryTargetKey(target);
+  const index = deliveryPlannedRouteOrderedKeys.indexOf(key);
+  return index >= 0 ? index + 1 : 0;
+}
+
+function deliveryRouteTargetsSignature(targets) {
+  return (Array.isArray(targets) ? targets : []).map(getDeliveryTargetKey).sort().join("|");
+}
+
+function haversineMeters(a, b) {
+  const lat1 = Number(a?.lat ?? a?.[0]);
+  const lng1 = Number(a?.lng ?? a?.[1]);
+  const lat2 = Number(b?.lat ?? b?.[0]);
+  const lng2 = Number(b?.lng ?? b?.[1]);
+  if (![lat1, lng1, lat2, lng2].every(Number.isFinite)) return Infinity;
+  const rad = Math.PI / 180;
+  const dLat = (lat2 - lat1) * rad;
+  const dLng = (lng2 - lng1) * rad;
+  const s1 = Math.sin(dLat / 2);
+  const s2 = Math.sin(dLng / 2);
+  const h = s1 * s1 + Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * s2 * s2;
+  return 6371000 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(Math.max(0, 1 - h)));
+}
+
+function getTargetPoint(target) {
+  const latlng = getDeliveryTargetLatLng(target);
+  if (!latlng) return null;
+  return { target, lat: Number(latlng.lat), lng: Number(latlng.lng) };
+}
+
+function buildLocalClosedLoopOrder(targets, startLatLng) {
+  const remaining = (Array.isArray(targets) ? targets : []).map(getTargetPoint).filter(Boolean);
+  if (!remaining.length) return [];
+  const ordered = [];
+  let current = { lat: Number(startLatLng.lat), lng: Number(startLatLng.lng) };
+  while (remaining.length) {
+    let bestIndex = 0;
+    let bestDistance = Infinity;
+    remaining.forEach((point, index) => {
+      const distance = haversineMeters(current, point);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestIndex = index;
+      }
+    });
+    const [next] = remaining.splice(bestIndex, 1);
+    ordered.push(next);
+    current = next;
+  }
+
+  // 简单 2-opt：以起点=终点的闭环距离为目标，减少明显折返。
+  const routeDistance = (points) => {
+    if (!points.length) return 0;
+    let total = haversineMeters(startLatLng, points[0]);
+    for (let i = 1; i < points.length; i += 1) total += haversineMeters(points[i - 1], points[i]);
+    total += haversineMeters(points[points.length - 1], startLatLng);
+    return total;
+  };
+  let improved = true;
+  let passes = 0;
+  while (improved && passes < 4) {
+    improved = false;
+    passes += 1;
+    const before = routeDistance(ordered);
+    outer: for (let i = 0; i < ordered.length - 2; i += 1) {
+      for (let j = i + 2; j < ordered.length; j += 1) {
+        const candidate = ordered.slice();
+        candidate.splice(i, j - i + 1, ...candidate.slice(i, j + 1).reverse());
+        if (routeDistance(candidate) + 0.5 < before) {
+          ordered.splice(0, ordered.length, ...candidate);
+          improved = true;
+          break outer;
+        }
+      }
+    }
+  }
+  return ordered.map((point) => point.target);
+}
+
+function toRoutesWaypoint(lat, lng) {
+  return {
+    location: {
+      latLng: {
+        latitude: Number(lat),
+        longitude: Number(lng)
+      }
+    }
+  };
+}
+
+async function callGoogleComputeRoutes(apiKey, points, optimize = false) {
+  if (!Array.isArray(points) || points.length < 2) throw new Error("路线点不足");
+  const origin = points[0];
+  const destination = points[points.length - 1];
+  const intermediates = points.slice(1, -1);
+  const body = {
+    origin: toRoutesWaypoint(origin.lat, origin.lng),
+    destination: toRoutesWaypoint(destination.lat, destination.lng),
+    intermediates: intermediates.map((point) => toRoutesWaypoint(point.lat, point.lng)),
+    travelMode: "DRIVE",
+    routingPreference: "TRAFFIC_AWARE",
+    polylineQuality: "HIGH_QUALITY",
+    polylineEncoding: "ENCODED_POLYLINE"
+  };
+  if (optimize && intermediates.length > 1) body.optimizeWaypointOrder = true;
+
+  const fieldMask = optimize
+    ? "routes.distanceMeters,routes.duration,routes.polyline.encodedPolyline,routes.optimizedIntermediateWaypointIndex"
+    : "routes.distanceMeters,routes.duration,routes.polyline.encodedPolyline";
+
+  const response = await fetch(ROUTES_API_ENDPOINT, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Goog-Api-Key": apiKey,
+      "X-Goog-FieldMask": fieldMask
+    },
+    body: JSON.stringify(body)
+  });
+
+  let data = null;
+  try {
+    data = await response.json();
+  } catch (error) {
+    data = null;
+  }
+  if (!response.ok) {
+    const message = data?.error?.message || `Routes API 请求失败（HTTP ${response.status}）`;
+    throw new Error(message);
+  }
+  const route = data?.routes?.[0];
+  if (!route?.polyline?.encodedPolyline) throw new Error("Google 没有返回可显示的路线");
+  return route;
+}
+
+function decodeGooglePolyline(encoded) {
+  const coordinates = [];
+  let index = 0;
+  let lat = 0;
+  let lng = 0;
+  while (index < encoded.length) {
+    let result = 0;
+    let shift = 0;
+    let byte = null;
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20 && index <= encoded.length);
+    const dLat = (result & 1) ? ~(result >> 1) : (result >> 1);
+    lat += dLat;
+
+    result = 0;
+    shift = 0;
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20 && index <= encoded.length);
+    const dLng = (result & 1) ? ~(result >> 1) : (result >> 1);
+    lng += dLng;
+    coordinates.push([lat / 1e5, lng / 1e5]);
+  }
+  return coordinates;
+}
+
+function renderDeliveryPlannedRoute(encodedPolylines) {
+  if (deliveryPlannedRouteLayer && map && map.hasLayer(deliveryPlannedRouteLayer)) map.removeLayer(deliveryPlannedRouteLayer);
+  const groups = (Array.isArray(encodedPolylines) ? encodedPolylines : []).map(decodeGooglePolyline).filter((points) => points.length > 1);
+  if (!groups.length) {
+    deliveryPlannedRouteLayer = null;
+    return;
+  }
+  deliveryPlannedRouteLayer = L.layerGroup(groups.map((points) => L.polyline(points, {
+    weight: 6,
+    opacity: 0.86,
+    lineCap: "round",
+    lineJoin: "round"
+  }))).addTo(map);
+}
+
+function makeRoutePointFromTarget(target) {
+  const latlng = getDeliveryTargetLatLng(target);
+  if (!latlng) return null;
+  return { lat: Number(latlng.lat), lng: Number(latlng.lng), target };
+}
+
+function splitRoutePointsIntoChunks(points) {
+  const chunks = [];
+  if (!Array.isArray(points) || points.length < 2) return chunks;
+  let startIndex = 0;
+  while (startIndex < points.length - 1) {
+    const endIndex = Math.min(points.length - 1, startIndex + DELIVERY_ROUTE_CHUNK_POINT_LIMIT - 1);
+    chunks.push(points.slice(startIndex, endIndex + 1));
+    if (endIndex >= points.length - 1) break;
+    startIndex = endIndex;
+  }
+  return chunks;
+}
+
+async function planDeliveryRoute(options = {}) {
+  if (deliveryRoutePlanning) return;
+  const pendingTargets = getDeliveryPendingTargets();
+  if (!pendingTargets.length) {
+    alert("本次没有待送号码，暂时不需要规划路线。");
+    return;
+  }
+  if (!myLatLng && !deliveryPlannedRouteStartLatLng) {
+    alert("还没有取得手机当前位置。请先点右下角定位/指南针按钮，等蓝点出现后再规划路线。");
+    return;
+  }
+  const apiKey = ensureRoutesApiKey();
+  if (!apiKey) return;
+
+  const startLatLng = deliveryPlannedRouteStartLatLng || L.latLng(Number(myLatLng[0]), Number(myLatLng[1]));
+  if (!deliveryPlannedRouteStartLatLng) deliveryPlannedRouteStartLatLng = L.latLng(startLatLng.lat, startLatLng.lng);
+
+  deliveryRoutePlanning = true;
+  updateDeliveryRoutePlanStatus();
+  if (planDeliveryRouteBtn) planDeliveryRouteBtn.disabled = true;
+
+  try {
+    let orderedTargets = [];
+    const encodedPolylines = [];
+    let distanceMeters = 0;
+    let durationSeconds = 0;
+
+    if (pendingTargets.length <= DELIVERY_ROUTE_MAX_OPTIMIZED_STOPS) {
+      const validTargetPoints = pendingTargets.map(makeRoutePointFromTarget).filter(Boolean);
+      const validTargets = validTargetPoints.map((point) => point.target);
+      const points = [
+        { lat: startLatLng.lat, lng: startLatLng.lng },
+        ...validTargetPoints,
+        { lat: startLatLng.lat, lng: startLatLng.lng }
+      ];
+      if (points.length < 3) throw new Error("没有足够的有效号码坐标");
+      const route = await callGoogleComputeRoutes(apiKey, points, true);
+      const indexes = Array.isArray(route.optimizedIntermediateWaypointIndex) ? route.optimizedIntermediateWaypointIndex : [];
+      orderedTargets = indexes.length === validTargets.length ? indexes.map((index) => validTargets[index]).filter(Boolean) : validTargets.slice();
+      encodedPolylines.push(route.polyline.encodedPolyline);
+      distanceMeters += Number(route.distanceMeters) || 0;
+      durationSeconds += parseFloat(String(route.duration || "0").replace(/s$/, "")) || 0;
+    } else {
+      orderedTargets = buildLocalClosedLoopOrder(pendingTargets, startLatLng);
+      const routePoints = [
+        { lat: startLatLng.lat, lng: startLatLng.lng },
+        ...orderedTargets.map(makeRoutePointFromTarget).filter(Boolean),
+        { lat: startLatLng.lat, lng: startLatLng.lng }
+      ];
+      for (const chunk of splitRoutePointsIntoChunks(routePoints)) {
+        const route = await callGoogleComputeRoutes(apiKey, chunk, false);
+        encodedPolylines.push(route.polyline.encodedPolyline);
+        distanceMeters += Number(route.distanceMeters) || 0;
+        durationSeconds += parseFloat(String(route.duration || "0").replace(/s$/, "")) || 0;
+      }
+    }
+
+    deliveryPlannedRouteOrderedKeys = orderedTargets.map(getDeliveryTargetKey);
+    deliveryPlannedRouteSignature = deliveryRouteTargetsSignature(pendingTargets);
+    deliveryRouteLastDistanceMeters = distanceMeters;
+    deliveryRouteLastDurationSeconds = durationSeconds;
+    renderDeliveryPlannedRoute(encodedPolylines);
+    renderDeliveryRoutePanel();
+    updateDeliveryRoutePlanStatus();
+
+    const routePoints = [deliveryPlannedRouteStartLatLng];
+    orderedTargets.forEach((target) => {
+      const point = getDeliveryTargetLatLng(target);
+      if (point) routePoints.push(point);
+    });
+    routePoints.push(deliveryPlannedRouteStartLatLng);
+    if (routePoints.length > 2) {
+      const bounds = L.latLngBounds(routePoints);
+      if (bounds.isValid()) map.fitBounds(bounds, { paddingTopLeft: [30, 110], paddingBottomRight: [90, 150], maxZoom: 19, animate: true });
+    }
+
+    if (pendingTargets.length > DELIVERY_ROUTE_MAX_OPTIMIZED_STOPS) {
+      updateLocationStatus(`已规划 ${orderedTargets.length} 个号码的闭环路线。号码超过 ${DELIVERY_ROUTE_MAX_OPTIMIZED_STOPS} 个，本次先按地图位置优化顺序，再由 Google 绘制道路路线。`, "success");
+    } else {
+      updateLocationStatus(`已规划 ${orderedTargets.length} 个号码的闭环路线。偏离路线不会自动重算。`, "success");
+    }
+  } catch (error) {
+    console.error("路线规划失败：", error);
+    updateDeliveryRoutePlanStatus(`路线：规划失败 · ${error.message || "未知错误"}`);
+    alert(`路线规划失败：${error.message || "未知错误"}\n\n如果提示 API key / referrer / CORS，请把错误截图发给我。`);
+  } finally {
+    deliveryRoutePlanning = false;
+    if (planDeliveryRouteBtn) planDeliveryRouteBtn.disabled = false;
+    if (deliveryPlannedRouteOrderedKeys.length) updateDeliveryRoutePlanStatus();
+  }
+}
+
+function replanDeliveryRouteOnlyForNewTargets() {
+  if (!deliveryPlannedRouteStartLatLng || !deliveryPlannedRouteOrderedKeys.length) return;
+  const pendingTargets = getDeliveryPendingTargets();
+  const nextSignature = deliveryRouteTargetsSignature(pendingTargets);
+  if (nextSignature === deliveryPlannedRouteSignature) return;
+  // 唯一自动重算条件：本次清单真正新增了号码。起终点仍保持第一次规划时的位置。
+  planDeliveryRoute({ reason: "new-target" });
+}
+
+function finishCurrentDeliveryRoute() {
+  if (!confirm("确定结束本次送货吗？\n路线和本次号码清单会收起；公寓地图资料不会删除。")) return;
+  clearDeliveryPlannedRoute();
+  showCommunityBuildingsOnly();
+  updateLocationStatus("本次送货已结束", "success");
+}
+
+
 const historyStack = [];
 const MAX_HISTORY = 50;
 const GOOD_ACCURACY = 20;
@@ -264,6 +648,11 @@ const deliveredRouteCount = document.getElementById("deliveredRouteCount");
 const pendingRouteToggleCount = document.getElementById("pendingRouteToggleCount");
 const deliveredRouteToggleCount = document.getElementById("deliveredRouteToggleCount");
 const addDeliveryRouteNumberBtn = document.getElementById("addDeliveryRouteNumberBtn");
+const planDeliveryRouteBtn = document.getElementById("planDeliveryRouteBtn");
+const endDeliveryRouteBtn = document.getElementById("endDeliveryRouteBtn");
+const deliveryRoutePlanStatus = document.getElementById("deliveryRoutePlanStatus");
+const pendingRouteEmptyState = document.getElementById("pendingRouteEmptyState");
+const finishDeliveryRouteBtn = document.getElementById("finishDeliveryRouteBtn");
 const deliveryToast = document.getElementById("deliveryToast");
 const deliveryToastText = document.getElementById("deliveryToastText");
 const undoDeliveryHideBtn = document.getElementById("undoDeliveryHideBtn");
@@ -1146,6 +1535,7 @@ function renderMap() {
 }
 
 function showCommunityCardsMode() {
+  clearDeliveryPlannedRoute();
   displayMode = "communities";
   selectedBuildingId = null;
   selectedPositions.clear();
@@ -1508,7 +1898,8 @@ function createDeliveryRouteRow(target, delivered = false) {
   const chip = document.createElement("button");
   chip.type = "button";
   chip.className = "delivery-route-chip";
-  chip.innerText = getDeliveryTargetLabel(target);
+  const routeOrder = delivered ? 0 : getDeliveryRouteOrderIndex(target);
+  chip.innerText = routeOrder ? `${routeOrder}. ${getDeliveryTargetLabel(target)}` : getDeliveryTargetLabel(target);
   chip.addEventListener("click", () => zoomToDeliveryTarget(target));
 
   const action = document.createElement("button");
@@ -1631,6 +2022,8 @@ function renderDeliveryRoutePanel() {
   if (pendingRouteListPanel) pendingRouteListPanel.classList.toggle("is-open", deliveryPendingPanelOpen);
   if (deliveredRouteListPanel) deliveredRouteListPanel.classList.toggle("is-open", deliveryDeliveredPanelOpen);
 
+  if (pendingRouteEmptyState) pendingRouteEmptyState.hidden = pendingTargets.length !== 0;
+  updateDeliveryRoutePlanStatus();
   renderDeliveryRouteRows(pendingRouteList, pendingTargets, false);
   renderDeliveryRouteRows(deliveredRouteList, deliveredTargets, true);
 }
@@ -1695,6 +2088,7 @@ function promptAddDeliveryRouteNumber() {
   if (result.added) parts.push(`新增 ${result.added} 个`);
   if (result.restored) parts.push(`恢复 ${result.restored} 个`);
   updateLocationStatus(parts.length ? `${parts.join("，")}号码到本次送货清单` : "这些号码已经在本次清单里", result.added || result.restored ? "success" : "info");
+  if (result.added > 0) window.setTimeout(replanDeliveryRouteOnlyForNewTargets, 80);
 }
 
 function normalizeApartmentSearchValue(value) {
@@ -1762,6 +2156,7 @@ function insertCommunitySearchText(text) {
 }
 
 function showCommunityNumberSearchResults() {
+  clearDeliveryPlannedRoute();
   const community = getCommunityById(communitySearchCommunityId || appData.activeCommunityId);
   if (!community) return;
 
@@ -1789,6 +2184,7 @@ function showCommunityNumberSearchResults() {
 }
 
 function showAllNumbersForCommunity() {
+  clearDeliveryPlannedRoute();
   const community = getCommunityById(communitySearchCommunityId || appData.activeCommunityId);
   if (!community) return;
 
@@ -1815,6 +2211,7 @@ function showAllNumbersForCommunity() {
 }
 
 function showCommunityBuildingsOnly() {
+  clearDeliveryPlannedRoute();
   const community = getCommunityById(communitySearchCommunityId || appData.activeCommunityId);
   if (!community) return;
   appData.activeCommunityId = community.id;
@@ -5718,6 +6115,9 @@ if (closePendingRoutePanelBtn) closePendingRoutePanelBtn.addEventListener("click
 });
 if (toggleDeliveredRouteListBtn) toggleDeliveredRouteListBtn.addEventListener("click", toggleDeliveredDeliveryPanel);
 if (addDeliveryRouteNumberBtn) addDeliveryRouteNumberBtn.addEventListener("click", promptAddDeliveryRouteNumber);
+if (planDeliveryRouteBtn) planDeliveryRouteBtn.addEventListener("click", () => planDeliveryRoute({ reason: "manual" }));
+if (endDeliveryRouteBtn) endDeliveryRouteBtn.addEventListener("click", finishCurrentDeliveryRoute);
+if (finishDeliveryRouteBtn) finishDeliveryRouteBtn.addEventListener("click", finishCurrentDeliveryRoute);
 if (undoDeliveryHideBtn) undoDeliveryHideBtn.addEventListener("click", undoLastDeliveryHide);
 if (closeDeliveryToastBtn) closeDeliveryToastBtn.addEventListener("click", hideDeliveryToast);
 function deleteCommunitySearchText() {

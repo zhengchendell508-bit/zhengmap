@@ -65,10 +65,13 @@
           <div class="delivery-route-card-header">
             <strong>待送号码 (<span id="pendingRouteCount">0</span>)</strong>
             <div class="delivery-route-card-header-actions">
+              <button id="planDeliveryRouteBtn" class="delivery-route-plan-btn" type="button">规划路线</button>
               <button id="addDeliveryRouteNumberBtn" type="button">＋ 增加</button>
+              <button id="endDeliveryRouteBtn" class="delivery-route-end-btn" type="button">结束送货</button>
               <button id="closePendingRoutePanelBtn" class="panel-mini-close" type="button" aria-label="关闭本次号码列表">×</button>
             </div>
           </div>
+          <div id="deliveryRoutePlanStatus" class="delivery-route-plan-status">路线：尚未规划</div>
           <div id="pendingRouteList" class="delivery-route-list"></div>
           <div id="pendingRouteEmptyState" class="delivery-route-finish-state" hidden>
             <div class="delivery-route-finish-badge">✓</div>
