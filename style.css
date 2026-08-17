@@ -1563,6 +1563,35 @@ button {
   font-weight: 900;
 }
 
+
+/* 字母公寓号搜索键盘：默认数字九宫格，点 ABC 后切换 A-Z。 */
+.community-search-keypad .search-letter-key {
+  display: none;
+}
+
+.community-search-keypad .search-mode-letters-btn {
+  grid-column: 1 / -1;
+}
+
+.community-search-keypad.is-letter-mode {
+  grid-template-columns: repeat(6, 1fr);
+}
+
+.community-search-keypad.is-letter-mode > button:not(.search-letter-key) {
+  display: none;
+}
+
+.community-search-keypad.is-letter-mode .search-letter-key {
+  display: block;
+  min-width: 0;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+.community-search-keypad.is-letter-mode .search-letter-control {
+  grid-column: span 2;
+}
+
 #showAllCommunityNumbers {
   min-height: 36px;
   background: #f59e0b;

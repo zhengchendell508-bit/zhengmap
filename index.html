@@ -141,7 +141,7 @@
         </label>
         <label>
           <span>公寓号</span>
-          <input id="universalUnitInput" type="text" inputmode="text" placeholder="例如 01-10 或 101 103" autocomplete="off">
+          <input id="universalUnitInput" type="text" inputmode="text" placeholder="例如 01-10、101 103；无大楼/楼层时可 A B C 或 A-G" autocomplete="off">
         </label>
       </div>
 
@@ -179,12 +179,12 @@
             <span>10</span>
           </div>
           <div class="community-search-input-shell">
-            <textarea id="communityNumberSearchInput" rows="10" inputmode="none" placeholder="101&#10;102&#10;203" autocomplete="off" autocapitalize="off" spellcheck="false" data-mobile-keypad-only="true"></textarea>
+            <textarea id="communityNumberSearchInput" rows="10" inputmode="none" placeholder="101&#10;102&#10;A&#10;B" autocomplete="off" autocapitalize="off" spellcheck="false" data-mobile-keypad-only="true"></textarea>
           </div>
         </div>
 
         <div class="community-search-keypad-wrap">
-          <div class="community-search-keypad" aria-label="号码输入键盘">
+          <div id="communitySearchKeypad" class="community-search-keypad" aria-label="公寓号输入键盘">
             <button type="button" data-search-insert="1">1</button>
             <button type="button" data-search-insert="2">2</button>
             <button type="button" data-search-insert="3">3</button>
@@ -197,6 +197,37 @@
             <button type="button" data-search-action="backspace" class="search-backspace-btn" aria-label="删除">⌫</button>
             <button type="button" data-search-insert="0">0</button>
             <button type="button" data-search-insert="\n" class="search-next-line-btn">下一行</button>
+            <button type="button" data-search-action="letters" class="search-mode-btn search-mode-letters-btn">ABC</button>
+
+            <button type="button" data-search-insert="A" class="search-letter-key">A</button>
+            <button type="button" data-search-insert="B" class="search-letter-key">B</button>
+            <button type="button" data-search-insert="C" class="search-letter-key">C</button>
+            <button type="button" data-search-insert="D" class="search-letter-key">D</button>
+            <button type="button" data-search-insert="E" class="search-letter-key">E</button>
+            <button type="button" data-search-insert="F" class="search-letter-key">F</button>
+            <button type="button" data-search-insert="G" class="search-letter-key">G</button>
+            <button type="button" data-search-insert="H" class="search-letter-key">H</button>
+            <button type="button" data-search-insert="I" class="search-letter-key">I</button>
+            <button type="button" data-search-insert="J" class="search-letter-key">J</button>
+            <button type="button" data-search-insert="K" class="search-letter-key">K</button>
+            <button type="button" data-search-insert="L" class="search-letter-key">L</button>
+            <button type="button" data-search-insert="M" class="search-letter-key">M</button>
+            <button type="button" data-search-insert="N" class="search-letter-key">N</button>
+            <button type="button" data-search-insert="O" class="search-letter-key">O</button>
+            <button type="button" data-search-insert="P" class="search-letter-key">P</button>
+            <button type="button" data-search-insert="Q" class="search-letter-key">Q</button>
+            <button type="button" data-search-insert="R" class="search-letter-key">R</button>
+            <button type="button" data-search-insert="S" class="search-letter-key">S</button>
+            <button type="button" data-search-insert="T" class="search-letter-key">T</button>
+            <button type="button" data-search-insert="U" class="search-letter-key">U</button>
+            <button type="button" data-search-insert="V" class="search-letter-key">V</button>
+            <button type="button" data-search-insert="W" class="search-letter-key">W</button>
+            <button type="button" data-search-insert="X" class="search-letter-key">X</button>
+            <button type="button" data-search-insert="Y" class="search-letter-key">Y</button>
+            <button type="button" data-search-insert="Z" class="search-letter-key">Z</button>
+            <button type="button" data-search-action="backspace" class="search-letter-key search-letter-control search-backspace-btn" aria-label="删除">⌫</button>
+            <button type="button" data-search-action="numbers" class="search-letter-key search-letter-control search-mode-btn">123</button>
+            <button type="button" data-search-insert="\n" class="search-letter-key search-letter-control search-next-line-btn">下一行</button>
           </div>
           <button id="confirmCommunityNumberSearch" type="button">确认</button>
         </div>
