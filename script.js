@@ -5003,18 +5003,14 @@ function parseUniversalTableInput(buildingText, floorText, unitText) {
 
   const units = expandApartmentUnitInput(unitsRaw);
   if (!units.length) return { error: "没有识别到可生成的公寓号。可使用 01-10、101 103 105、A B C、A-G，或 3A 4A。" };
-  const hasPureLetterUnits = units.some((unit) => /^[A-Z]+$/.test(String(unit)));
-  const hasFloorLetterUnits = units.some((unit) => /^\d+[A-Z]+$/.test(String(unit)));
-  if ((hasPureLetterUnits || hasFloorLetterUnits) && (buildingRaw || floorRaw)) {
-    return { error: "字母公寓号只能在“公寓号”框使用，并且大楼、楼层必须留空。纯字母可输入 A B C；楼层+字母可输入 3A 4A，其中数字会自动识别为楼层。" };
-  }
-
   const unitRangeLabel = getUniversalUnitRangeLabel(units);
   const parsedItems = [];
   buildings.forEach((building) => {
     floors.forEach((floor) => {
       units.forEach((unit) => {
         const unitText = String(unit || "").toUpperCase();
+        // 当大楼、楼层都留空并输入 3A / 12B 时，数字部分自动作为楼层、字母作为公寓号。
+        // 如果用户已经填写了大楼或楼层，则公寓号按原样保存；字母仍可正常参与尾号联动判断。
         const floorLetterMatch = !building && !floor ? unitText.match(/^(\d+)([A-Z]+)$/) : null;
         const effectiveFloor = floorLetterMatch ? floorLetterMatch[1] : floor;
         const effectiveUnit = floorLetterMatch ? floorLetterMatch[2] : unitText;
@@ -5050,7 +5046,7 @@ function getUniversalPreviewText() {
   const floor = universalFloorInput ? universalFloorInput.value : "";
   const unit = universalUnitInput ? universalUnitInput.value : "";
   const result = parseUniversalTableInput(building, floor, unit);
-  if (result.error) return "示例：3 4 6 / 1 / 01-15 → 301-315、401-415、601-615；空 / 空 / 101 201 301 → 可按01公用位置联动；空 / 空 / A-G；空 / 空 / 3A 4A";
+  if (result.error) return "示例：3 4 6 / 1 / 01-15 → 301-315、401-415、601-615；空 / 空 / 101 201 301 → 可按01公用位置联动；空 / 空 / A-G；空 / 空 / 3A 4A；5 / 3 / A-D";
   const values = result.parsedItems.map((item) => item.original);
   const buildingCount = (result.buildings || []).filter(Boolean).length;
   const buildingText = buildingCount > 1 ? `${buildingCount} 栋大楼，` : "";
@@ -5079,116 +5075,158 @@ function closeUniversalNumberPanel() {
   if (universalNumberPanel) universalNumberPanel.classList.remove("is-open");
 }
 
-function getUniversalPhysicalUnitKey(positionLike) {
-  const positionText = String(positionLike?.position || positionLike?.original || "").trim().toUpperCase();
-  const universal = positionLike?.universal || {};
-  if (String(universal.building || "").trim()) return "";
-
-  // 3A / 4A：A 是公用号码，数字部分是楼层。
-  const floorLetter = positionText.match(/^(\d+)([A-Z]+)$/);
-  if (floorLetter) return `alpha:${floorLetter[2]}`;
-
-  // 纯数字的公用尾号不能写死为两位。真正的 1/2/3 位尾号由整组号码共同判断。
+function normalizePhysicalTailLabel(value) {
+  const text = String(value || "").trim().toUpperCase();
+  if (!text) return "";
+  const letterTail = text.match(/([A-Z]+)$/);
+  if (letterTail) return `alpha:${letterTail[1]}`;
+  if (/^\d+$/.test(text)) return `numExact:${text}`;
   return "";
 }
 
 function getPhysicalUnitDisplayLabel(key) {
-  const text = String(key || "");
+  const text = String(key || "").split("|building:")[0];
   if (text.startsWith("alpha:")) return text.slice(6);
-  if (text.startsWith("num:")) return String(Number(text.slice(4)));
+  if (text.startsWith("numExact:")) return text.slice(9);
+  if (text.startsWith("num:")) return text.slice(4);
   return text;
 }
 
-function collectPhysicalUnitGroups(building) {
-  const positions = Array.isArray(building?.positions) ? building.positions : [];
+function getPositionPhysicalCandidate(position) {
+  const universal = position?.universal || {};
+  const building = String(universal.building || "").trim();
+  const floor = String(universal.floor || "").trim();
+  const unit = String(universal.unit || "").trim().toUpperCase();
+  const positionText = String(position?.position || position?.original || "").trim().toUpperCase();
+
+  // 只要“公寓号”本身带有英文字母，就看最后的英文字母作为可能的公用尾号。
+  // 例如 A、1A、12A 都归入 A 候选组。是否真正联动仍由用户确认。
+  const alphaKey = normalizePhysicalTailLabel(unit || positionText);
+  if (alphaKey.startsWith("alpha:")) {
+    return building ? `${alphaKey}|building:${building}` : alphaKey;
+  }
+
+  // 用户明确填写了大楼或楼层时，“公寓号”字段本身就是公用号码候选。
+  // 例如 1楼/01、2楼/01，或者 5号楼/1楼/01 与 5号楼/2楼/01。
+  if ((building || floor) && /^\d+$/.test(unit)) {
+    return building ? `numExact:${unit}|building:${building}` : `numExact:${unit}`;
+  }
+
+  // 没有大楼、没有楼层，且只是直接输入完整纯数字号码（101/201/301）时，
+  // 交给 collectPhysicalUnitGroups 自动寻找最长的重复数字尾号。
+  return "";
+}
+
+function collectPhysicalUnitGroups(community) {
+  const refs = [];
+  (Array.isArray(community?.buildings) ? community.buildings : []).forEach((building) => {
+    (Array.isArray(building?.positions) ? building.positions : []).forEach((position) => {
+      refs.push({ building, position });
+    });
+  });
+
   const groups = new Map();
   const assignedNumericIds = new Set();
 
-  // 字母公寓号：3A / 4A / 5A 直接按 A 分组。
-  positions.forEach((position) => {
-    const key = getUniversalPhysicalUnitKey(position);
+  // 第一类：明确的公寓号字段（数字或字母）。字母看最后的英文字母；数字看完整公寓号字段。
+  refs.forEach((ref) => {
+    const key = getPositionPhysicalCandidate(ref.position);
     if (!key) return;
     if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push(position);
+    groups.get(key).push(ref);
   });
 
-  // 纯数字完整号码：从 3 位尾号开始向 1 位尾号尝试。
-  // 使用“最长且重复”的尾号作为公用号码，避免 1001/2001 被错误只归为最后一位 1。
-  const numericPositions = positions.filter((position) => {
+  // 第二类：没有大楼、没有楼层，只直接输入完整纯数字号码，例如 101/201/301。
+  // 从 3 位尾号到 1 位尾号寻找“最长且重复”的尾号。
+  const numericRefs = refs.filter(({ position }) => {
+    const universal = position?.universal || {};
     const text = String(position?.position || "").trim();
-    return !String(position?.universal?.building || "").trim() && /^\d{2,}$/.test(text);
+    return !String(universal.building || "").trim()
+      && !String(universal.floor || "").trim()
+      && /^\d{2,}$/.test(text);
   });
 
   [3, 2, 1].forEach((suffixLength) => {
     const candidates = new Map();
-    numericPositions.forEach((position) => {
-      if (assignedNumericIds.has(position.id)) return;
-      const text = String(position.position || "").trim();
-      if (text.length <= suffixLength) return; // 前面至少要留一位作为楼层部分。
+    numericRefs.forEach((ref) => {
+      if (assignedNumericIds.has(ref.position.id)) return;
+      const text = String(ref.position.position || "").trim();
+      if (text.length <= suffixLength) return;
       const suffix = text.slice(-suffixLength);
       if (!candidates.has(suffix)) candidates.set(suffix, []);
-      candidates.get(suffix).push(position);
+      candidates.get(suffix).push(ref);
     });
 
     candidates.forEach((items, suffix) => {
       if (items.length < 2) return;
-      // 必须确实来自不同的前缀（楼层），否则不算跨楼层公用号码。
-      const prefixes = new Set(items.map((position) => String(position.position).slice(0, -suffixLength)));
+      const prefixes = new Set(items.map(({ position }) => String(position.position).slice(0, -suffixLength)));
       if (prefixes.size < 2) return;
       const key = `num:${suffix}`;
       groups.set(key, items);
-      items.forEach((position) => assignedNumericIds.add(position.id));
+      items.forEach(({ position }) => assignedNumericIds.add(position.id));
     });
   });
 
-  return new Map(Array.from(groups.entries()).filter(([, items]) => items.length >= 2));
+  // 至少两个不同完整号码才需要询问联动。
+  return new Map(Array.from(groups.entries()).filter(([, items]) => {
+    const numbers = new Set(items.map(({ position }) => String(position.position)));
+    return items.length >= 2 && numbers.size >= 2;
+  }));
 }
 
-function arrangePhysicalUnitGroups(building, groups) {
-  const entries = Array.from(groups.entries());
-  entries.forEach(([key, items], index) => {
-    const center = { lat: Number(building.lat), lng: Number(building.lng) };
-    const point = getBulkBuildingCenterLatLng(center, index, entries.length);
-    items.forEach((position) => {
-      position.lat = point.lat;
-      position.lng = point.lng;
-      if (!position.universal) position.universal = {};
-      position.universal.physicalStackKey = key;
-    });
+function arrangePhysicalUnitGroup(key, refs) {
+  if (!refs.length) return;
+  const anchor = refs.find(({ position }) => Number.isFinite(Number(position?.lat)) && Number.isFinite(Number(position?.lng)));
+  if (!anchor) return;
+  const lat = Number(anchor.position.lat);
+  const lng = Number(anchor.position.lng);
+  refs.forEach(({ position }) => {
+    position.lat = lat;
+    position.lng = lng;
+    if (!position.universal) position.universal = {};
+    position.universal.physicalStackKey = key;
   });
 }
 
-function clearPhysicalUnitGroupBindings(building, groups) {
-  Array.from(groups.values()).forEach((items) => {
-    items.forEach((position) => {
-      if (position?.universal) delete position.universal.physicalStackKey;
-    });
+function clearPhysicalUnitGroupBinding(refs) {
+  refs.forEach(({ position }) => {
+    if (position?.universal) delete position.universal.physicalStackKey;
   });
 }
 
-function askAndApplyPhysicalUnitGrouping(building) {
-  const groups = collectPhysicalUnitGroups(building);
-  if (!groups.size) return false;
+function askAndApplyPhysicalUnitGrouping(community) {
+  const groups = collectPhysicalUnitGroups(community);
+  if (!groups.size) return 0;
 
-  const preview = Array.from(groups.entries()).slice(0, 8).map(([key, items]) => {
-    const nums = items.map((item) => item.position).sort((a, b) => String(a).localeCompare(String(b), "zh-CN", { numeric: true }));
-    return `${getPhysicalUnitDisplayLabel(key)}号：${nums.join(" / ")}`;
-  }).join("\n");
-  const more = groups.size > 8 ? `\n……另有 ${groups.size - 8} 组` : "";
+  let linkedCount = 0;
+  Array.from(groups.entries()).forEach(([key, refs]) => {
+    const nums = refs
+      .map(({ position }) => String(position.position))
+      .sort((a, b) => String(a).localeCompare(String(b), "zh-CN", { numeric: true }));
+    const tail = getPhysicalUnitDisplayLabel(key);
+    const samePlace = confirm(
+      `检测到公寓号尾号“${tail}”相同：\n\n${nums.join(" / ")}\n\n这些号码在现实中是否处于同一个物理位置？\n\n确定 = 是：绑定为一组，拖动其中任意一个时整组一起移动。\n取消 = 否：这些号码保持各自独立。`
+    );
 
-  const samePlace = confirm(
-    `检测到不同楼层存在相同的公用号码：\n\n${preview}${more}\n\n这些相同公用号码在现实中是否处于同一个物理位置？\n\n确定 = 是：同组号码叠在一起，拖动其中一个时整组一起移动。\n取消 = 否：保持各号码独立，不进行联动拖动。`
-  );
-
-  if (samePlace) arrangePhysicalUnitGroups(building, groups);
-  else clearPhysicalUnitGroupBindings(building, groups);
-  return samePlace;
+    if (samePlace) {
+      arrangePhysicalUnitGroup(key, refs);
+      linkedCount += 1;
+    } else {
+      clearPhysicalUnitGroupBinding(refs);
+    }
+  });
+  return linkedCount;
 }
 
-function getLinkedPhysicalPositions(building, item) {
+function getLinkedPhysicalPositions(community, item) {
   const key = String(item?.universal?.physicalStackKey || "").trim();
   if (!key) return [item];
-  const linked = (Array.isArray(building?.positions) ? building.positions : []).filter((position) => String(position?.universal?.physicalStackKey || "") === key);
+  const linked = [];
+  (Array.isArray(community?.buildings) ? community.buildings : []).forEach((building) => {
+    (Array.isArray(building?.positions) ? building.positions : []).forEach((position) => {
+      if (String(position?.universal?.physicalStackKey || "") === key) linked.push(position);
+    });
+  });
   return linked.length ? linked : [item];
 }
 
@@ -5201,7 +5239,8 @@ function applyPositionDragWithPhysicalGroup(building, item, startLatLng, endLatL
 
   const deltaLat = newLat - oldLat;
   const deltaLng = newLng - oldLng;
-  const linked = getLinkedPhysicalPositions(building, item);
+  const community = getActiveCommunity();
+  const linked = getLinkedPhysicalPositions(community, item);
   linked.forEach((position) => {
     position.lat = Number(position.lat) + deltaLat;
     position.lng = Number(position.lng) + deltaLng;
@@ -5296,16 +5335,10 @@ ${skipped ? `其中 ${skipped} 个重复号码会自动跳过。
     });
   });
 
-  // 对“没有大楼、没有楼层、完整号码中包含楼层信息”的情况，
-  // 询问相同公用尾号是否处在同一物理位置。
-  // 例如 101/201/301 属于 01 组；202/302/402 属于 02 组。
-  // 3A/4A/5A 属于 A 组。
-  if (!String(parsed.building || "").trim() && !String(parsed.floor || "").trim()) {
-    Array.from(groupedToAdd.keys()).forEach((buildingKey) => {
-      const targetBuilding = community.buildings.find((item) => item.name === buildingKey);
-      if (targetBuilding) askAndApplyPhysicalUnitGrouping(targetBuilding);
-    });
-  }
+  // 每次生成后检查“公寓号尾号相同”的候选组。
+  // 不管是否填写大楼、楼层，只要尾号相同就提示用户决定是否联动。
+  // 例如：101/201/301 -> 01；1楼/A、2楼/A -> A；不同大楼的 A 也会进入提示。
+  const linkedPhysicalGroupCount = askAndApplyPhysicalUnitGrouping(community);
 
   community.type = "universal";
   community.lat = Number(latlng.lat);
@@ -5319,7 +5352,7 @@ ${skipped ? `其中 ${skipped} 个重复号码会自动跳过。
   closeBuildingPanel();
   renderMap();
   const touchedBuildingCount = groupedToAdd.size;
-  updateLocationStatus(`已生成 ${touchedBuildingCount} 栋大楼 / ${toAdd.length} 个号码${skipped ? `，跳过 ${skipped} 个重复号码` : ""}。相同公用号码可按你的确认结果绑定为同一物理位置，并支持整组拖动。`, "success");
+  updateLocationStatus(`已生成 ${touchedBuildingCount} 栋大楼 / ${toAdd.length} 个号码${skipped ? `，跳过 ${skipped} 个重复号码` : ""}。${linkedPhysicalGroupCount ? `已绑定 ${linkedPhysicalGroupCount} 个同尾号物理位置组，可整组拖动。` : "同尾号号码按你的选择保持绑定或独立。"}`, "success");
   return true;
 }
 
