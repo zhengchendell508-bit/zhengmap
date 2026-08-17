@@ -3,16 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="theme-color" content="#000000">
-  <title>公寓地图 APP V2</title>
+  <title>寻包火地图导航</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <main class="app" aria-label="公寓地图 APP V2">
+  <main class="app" aria-label="寻包火地图导航">
     <div id="map"></div>
 
     <section class="community-bar" aria-label="当前公寓选择">
@@ -66,17 +62,9 @@
           <span>本次号码</span><strong id="pendingRouteToggleCount">0</strong><em>⌄</em>
         </button>
         <div id="pendingRouteListPanel" class="delivery-route-card" aria-label="本次号码列表">
-          <div id="deliveryPasswordCard" class="delivery-password-card" hidden aria-label="当前公寓门禁密码">
-            <div class="delivery-password-row">
-              <span>外门</span><strong id="deliveryGateCodeText">未填</strong>
-            </div>
-            <div class="delivery-password-row">
-              <span>包裹室</span><strong id="deliveryPackageCodeText">未填</strong>
-            </div>
-          </div>
           <div class="delivery-route-card-header">
             <strong>待送号码 (<span id="pendingRouteCount">0</span>)</strong>
-            <div class="delivery-route-header-actions"><button id="planV2RouteBtn" type="button">规划蓝线</button><button id="addDeliveryRouteNumberBtn" type="button">＋ 增加</button></div>
+            <button id="addDeliveryRouteNumberBtn" type="button">＋ 增加</button>
           </div>
           <div id="pendingRouteList" class="delivery-route-list"></div>
           <div id="pendingRouteEmptyState" class="delivery-route-finish-state" hidden>
@@ -93,11 +81,6 @@
           <div id="deliveredRouteList" class="delivery-route-list is-delivered-list"></div>
         </div>
       </div>
-    </section>
-
-    <section id="v2RouteStatusPanel" class="v2-route-status-panel" aria-label="V2路线状态" hidden>
-      <div><strong>V2 蓝线路线</strong><span id="v2RouteStatusText">尚未规划</span></div>
-      <button id="clearV2RouteBtn" type="button">清除蓝线</button>
     </section>
 
     <div id="deliveryToast" class="delivery-toast" role="status" aria-live="polite">
@@ -127,16 +110,7 @@
       <details class="advanced-settings-block">
         <summary>高级设置 / 备份</summary>
         <button id="applySettingsBtn" class="secondary-btn" type="button">应用到现有公寓号码</button>
-        <button id="exportBtn" type="button">导出当前 APP JSON</button>
-        <button id="exportAllCloudRawBtn" class="cloud-export-btn" type="button">提取全部云端原始资料</button>
-        <button id="exportAllCloudAppBtn" class="cloud-export-btn secondary-cloud-export" type="button">提取并整理为 APP JSON</button>
-        <button id="analyzeCloudStructureBtn" class="cloud-export-btn structure-analysis-btn" type="button">分析云端数据结构</button>
-        <button id="scanLocalHistoryBtn" class="cloud-export-btn local-history-btn" type="button">检查本机历史数据</button>
-        <button id="downloadLocalHistoryBtn" class="cloud-export-btn local-history-download-btn" type="button" disabled>下载本机历史扫描报告</button>
-        <div id="localHistoryStatus" class="local-history-status" role="status" aria-live="polite">尚未检查本机历史数据</div>
-        <div id="localHistoryResults" class="local-history-results" hidden></div>
-        <div id="cloudExportProgress" class="cloud-export-progress" role="status" aria-live="polite">尚未开始提取云端资料</div>
-        <div id="cloudStructureSummary" class="cloud-structure-summary" hidden></div>
+        <button id="exportBtn" type="button">导出 JSON 到云盘</button>
         <label for="importInput">导入 JSON</label>
         <button id="importJsonBtn" class="secondary-btn" type="button">从云盘导入 JSON</button>
         <a id="desktopAdminTableLink" class="desktop-admin-table-link" href="admin.html" target="_blank" rel="noopener" aria-label="打开电脑端后台号码总表">打开后台号码总表（电脑端）</a>
@@ -260,11 +234,10 @@
         <strong id="buildingPhotoViewerTitle">大楼照片</strong>
         <button id="closeBuildingPhotoViewer" type="button" aria-label="关闭大楼照片">×</button>
       </div>
-      <div id="buildingPhotoViewerBody" class="building-photo-viewer-body">
-        <img id="buildingPhotoViewerImage" alt="大楼照片" role="button" aria-label="点击切换纯照片显示">
+      <div class="building-photo-viewer-body">
+        <img id="buildingPhotoViewerImage" alt="大楼照片">
       </div>
       <div class="building-photo-viewer-actions">
-        <div id="buildingPhotoCloudSizeText" class="building-photo-cloud-size">云端估算：—</div>
         <button id="replaceBuildingPhotoBtn" type="button">更换照片</button>
         <button id="deleteBuildingPhotoBtn" type="button">删除照片</button>
       </div>
@@ -279,8 +252,6 @@
       </div>
       <div class="mobile-mode-status" id="mobileModeStatusText">当前：送包裹模式</div>
       <button id="mobileToggleEditModeBtn" type="button" class="mobile-mode-primary">进入编辑模式</button>
-      <button id="openCommunityPasswordBtn" type="button" class="mobile-password-menu-btn">公寓密码</button>
-      <button id="openPhotoStorageStatsBtn" type="button" class="mobile-photo-storage-btn">照片容量</button>
       <button id="mobileOpenSettingsBtn" type="button">标记设置</button>
       <details class="mobile-advanced-actions">
         <summary>高级备份</summary>
@@ -288,41 +259,6 @@
         <button id="mobileExportJsonBtn" type="button">导出 JSON 到云盘</button>
       </details>
       <p class="mobile-mode-note">送包裹模式下不能拖动名牌、楼栋和号码；进入编辑模式后才允许新增、修改、拖动和删除。</p>
-    </section>
-
-    <section id="communityPasswordPanel" class="community-password-panel" aria-label="公寓密码填写" aria-hidden="true">
-      <div class="community-password-header">
-        <div>
-          <strong>公寓密码</strong>
-          <span id="communityPasswordCurrentName">当前公寓</span>
-        </div>
-        <button id="closeCommunityPasswordPanel" type="button" aria-label="关闭公寓密码">×</button>
-      </div>
-      <label class="community-password-field">
-        <span>外门 / 大楼门禁</span>
-        <input id="communityGateCodeInput" type="text" inputmode="text" autocomplete="off" placeholder="例如 #1234 或 1234">
-      </label>
-      <label class="community-password-field">
-        <span>包裹室 / 保管箱</span>
-        <input id="communityPackageCodeInput" type="text" inputmode="text" autocomplete="off" placeholder="例如 5678 或 12#34">
-      </label>
-      <div class="community-password-actions">
-        <button id="saveCommunityPasswordBtn" type="button">保存</button>
-        <button id="cancelCommunityPasswordBtn" type="button">取消</button>
-      </div>
-      <p class="community-password-note">只在编辑模式修改；留空保存后，送包裹清单里不会显示对应密码。</p>
-    </section>
-
-    <section id="photoStorageStatsPanel" class="photo-storage-stats-panel" aria-label="照片容量统计" aria-hidden="true">
-      <div class="photo-storage-stats-header">
-        <div>
-          <strong>照片容量</strong>
-          <span>按上传云端后的文字数据估算</span>
-        </div>
-        <button id="closePhotoStorageStatsPanel" type="button" aria-label="关闭照片容量统计">×</button>
-      </div>
-      <div id="photoStorageStatsContent" class="photo-storage-stats-content"></div>
-      <p class="photo-storage-stats-note">估算方法：JPG 压缩后大小 × 1.35。旧照片不会自动重新压缩，只按已有记录估算。</p>
     </section>
 
     <footer class="mobile-status">
@@ -335,7 +271,6 @@
   <script src="https://cdn.jsdelivr.net/npm/leaflet-rotate@0.2.8/dist/leaflet-rotate-src.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
-  <script src="app-config.js"></script>
   <script src="script.js"></script>
 </body>
 </html>

@@ -24,7 +24,6 @@ const DEFAULT_CENTER = [32.8599867, -97.0677587];
       ".community-search-panel",
       ".community-suggestion-panel",
       ".mobile-mode-panel",
-      ".community-password-panel",
       ".settings-panel",
       ".building-panel",
       ".community-bar",
@@ -117,16 +116,6 @@ let deliveryToastTimer = null;
 let communitySuggestionCloseTimer = null;
 let pendingBuildingPhotoBuildingId = null;
 let viewingBuildingPhotoBuildingId = null;
-let lastBuildingPhotoActionOpenedAt = 0;
-let buildingPhotoViewerScale = 1;
-let buildingPhotoViewerTranslateX = 0;
-let buildingPhotoViewerTranslateY = 0;
-let buildingPhotoViewerTouchMode = "";
-let buildingPhotoViewerPinchStartDistance = 0;
-let buildingPhotoViewerPinchStartScale = 1;
-let buildingPhotoViewerSwipeStartX = 0;
-let buildingPhotoViewerSwipeStartY = 0;
-let buildingPhotoViewerSuppressClickUntil = 0;
 
 const historyStack = [];
 const MAX_HISTORY = 50;
@@ -158,16 +147,10 @@ const addBuildingPhotoBtn = document.getElementById("addBuildingPhotoBtn");
 const buildingPhotoInput = document.getElementById("buildingPhotoInput");
 const buildingPhotoViewer = document.getElementById("buildingPhotoViewer");
 const buildingPhotoViewerTitle = document.getElementById("buildingPhotoViewerTitle");
-const buildingPhotoViewerBody = document.getElementById("buildingPhotoViewerBody");
 const buildingPhotoViewerImage = document.getElementById("buildingPhotoViewerImage");
-const buildingPhotoCloudSizeText = document.getElementById("buildingPhotoCloudSizeText");
 const closeBuildingPhotoViewerBtn = document.getElementById("closeBuildingPhotoViewer");
 const replaceBuildingPhotoBtn = document.getElementById("replaceBuildingPhotoBtn");
 const deleteBuildingPhotoBtn = document.getElementById("deleteBuildingPhotoBtn");
-const openPhotoStorageStatsBtn = document.getElementById("openPhotoStorageStatsBtn");
-const photoStorageStatsPanel = document.getElementById("photoStorageStatsPanel");
-const closePhotoStorageStatsPanelBtn = document.getElementById("closePhotoStorageStatsPanel");
-const photoStorageStatsContent = document.getElementById("photoStorageStatsContent");
 const communitySelect = document.getElementById("communitySelect");
 const communityDropdownBtn = document.getElementById("communityDropdownBtn");
 const communityOptions = document.getElementById("communityOptions");
@@ -194,14 +177,6 @@ const mobileToggleEditModeBtn = document.getElementById("mobileToggleEditModeBtn
 const mobileImportJsonBtn = document.getElementById("mobileImportJsonBtn");
 const mobileExportJsonBtn = document.getElementById("mobileExportJsonBtn");
 const mobileOpenSettingsBtn = document.getElementById("mobileOpenSettingsBtn");
-const openCommunityPasswordBtn = document.getElementById("openCommunityPasswordBtn");
-const communityPasswordPanel = document.getElementById("communityPasswordPanel");
-const communityPasswordCurrentName = document.getElementById("communityPasswordCurrentName");
-const communityGateCodeInput = document.getElementById("communityGateCodeInput");
-const communityPackageCodeInput = document.getElementById("communityPackageCodeInput");
-const closeCommunityPasswordPanelBtn = document.getElementById("closeCommunityPasswordPanel");
-const saveCommunityPasswordBtn = document.getElementById("saveCommunityPasswordBtn");
-const cancelCommunityPasswordBtn = document.getElementById("cancelCommunityPasswordBtn");
 const cloudSyncStatus = document.getElementById("cloudSyncStatus");
 let mobileEditMode = localStorage.getItem("mobileEditMode") === "1";
 
@@ -219,8 +194,6 @@ function applyMobileModeUi() {
   document.body.classList.toggle("mobile-delivery-mode", !mobileEditMode);
   if (mobileModeStatusText) mobileModeStatusText.innerText = mobileEditMode ? "当前：编辑模式" : "当前：送包裹模式";
   if (mobileToggleEditModeBtn) mobileToggleEditModeBtn.innerText = mobileEditMode ? "退出编辑模式" : "进入编辑模式";
-  if (openCommunityPasswordBtn) openCommunityPasswordBtn.innerText = mobileEditMode ? "公寓密码" : "公寓密码（编辑模式）";
-  if (!mobileEditMode) closeCommunityPasswordPanel();
   if (mobileEditMode) updateLocationStatus("手机端编辑模式已开启：可以新增、拖动和修改标记", "warning");
 }
 
@@ -288,9 +261,6 @@ const pendingRouteCount = document.getElementById("pendingRouteCount");
 const deliveredRouteCount = document.getElementById("deliveredRouteCount");
 const pendingRouteToggleCount = document.getElementById("pendingRouteToggleCount");
 const deliveredRouteToggleCount = document.getElementById("deliveredRouteToggleCount");
-const deliveryPasswordCard = document.getElementById("deliveryPasswordCard");
-const deliveryGateCodeText = document.getElementById("deliveryGateCodeText");
-const deliveryPackageCodeText = document.getElementById("deliveryPackageCodeText");
 const addDeliveryRouteNumberBtn = document.getElementById("addDeliveryRouteNumberBtn");
 const deliveryToast = document.getElementById("deliveryToast");
 const deliveryToastText = document.getElementById("deliveryToastText");
@@ -586,8 +556,6 @@ function createCommunity(name, type = "building", latlng = null) {
     createdAt: new Date().toISOString(),
     lat: Number(center.lat),
     lng: Number(center.lng),
-    entryCode: "",
-    packageRoomCode: "",
     buildings: []
   };
   appData.communities.push(community);
@@ -1173,71 +1141,6 @@ function getCommunityById(id) {
   return (Array.isArray(appData.communities) ? appData.communities : []).find((community) => community.id === id) || null;
 }
 
-function getPasswordCommunity() {
-  return getCommunityById(communitySearchCommunityId || appData.activeCommunityId) || getActiveCommunity();
-}
-
-function cleanPasswordText(value) {
-  return String(value ?? "").trim().slice(0, 32);
-}
-
-function closeCommunityPasswordPanel() {
-  if (!communityPasswordPanel) return;
-  communityPasswordPanel.classList.remove("is-open");
-  communityPasswordPanel.setAttribute("aria-hidden", "true");
-}
-
-function openCommunityPasswordPanel() {
-  if (isMobileKeypadOnlyMode() && !mobileEditMode) {
-    updateLocationStatus("请先进入编辑模式，再填写公寓密码", "warning");
-    alert("公寓密码只能在编辑模式下修改。请先点“进入编辑模式”。");
-    return;
-  }
-
-  const community = getPasswordCommunity();
-  if (!community) {
-    alert("请先选择一个公寓，再填写密码。");
-    return;
-  }
-
-  if (communityPasswordCurrentName) communityPasswordCurrentName.innerText = community.name || "当前公寓";
-  if (communityGateCodeInput) communityGateCodeInput.value = cleanPasswordText(community.entryCode);
-  if (communityPackageCodeInput) communityPackageCodeInput.value = cleanPasswordText(community.packageRoomCode);
-
-  closeMobileModePanel();
-  if (communityPasswordPanel) {
-    communityPasswordPanel.classList.add("is-open");
-    communityPasswordPanel.setAttribute("aria-hidden", "false");
-  }
-  if (communityGateCodeInput) setTimeout(() => communityGateCodeInput.focus(), 60);
-}
-
-function saveCommunityPassword() {
-  const community = getPasswordCommunity();
-  if (!community) return;
-
-  pushHistory();
-  community.entryCode = cleanPasswordText(communityGateCodeInput ? communityGateCodeInput.value : "");
-  community.packageRoomCode = cleanPasswordText(communityPackageCodeInput ? communityPackageCodeInput.value : "");
-  saveData();
-  renderDeliveryRoutePanel();
-  closeCommunityPasswordPanel();
-  updateLocationStatus("公寓密码已保存，确认号码后会显示在本次号码下拉窗里", "success");
-}
-
-function renderDeliveryPasswordCard() {
-  if (!deliveryPasswordCard) return;
-  const community = getPasswordCommunity();
-  const entryCode = cleanPasswordText(community?.entryCode);
-  const packageCode = cleanPasswordText(community?.packageRoomCode);
-  const hasAnyCode = !!(entryCode || packageCode);
-
-  deliveryPasswordCard.hidden = !hasAnyCode;
-  deliveryPasswordCard.classList.toggle("is-visible", hasAnyCode);
-  if (deliveryGateCodeText) deliveryGateCodeText.innerText = entryCode || "未填";
-  if (deliveryPackageCodeText) deliveryPackageCodeText.innerText = packageCode || "未填";
-}
-
 function openCommunitySearchPanel(communityId) {
   const community = getCommunityById(communityId);
   if (!community) return;
@@ -1668,7 +1571,6 @@ function renderDeliveryRoutePanel() {
   deliveryRoutePanel.classList.toggle("is-visible", visible);
   if (!visible) return;
 
-  renderDeliveryPasswordCard();
   const pendingTargets = getDeliveryPendingTargets();
   const deliveredTargets = getDeliveryDeliveredTargets();
 
@@ -1890,22 +1792,23 @@ function showCommunityBuildingsOnly() {
   updateLocationStatus(`只显示 ${community.name} 的楼栋标记`, "info");
 }
 
-const BUILDING_PHOTO_MAX_BYTES = 260 * 1024;
-const BUILDING_PHOTO_TARGET_BYTES = 200 * 1024;
+const BUILDING_PHOTO_MAX_BYTES = 600 * 1024;
+const BUILDING_PHOTO_TARGET_BYTES = 500 * 1024;
 const BUILDING_PHOTO_MIME_TYPE = "image/jpeg";
 const BUILDING_PHOTO_EXT = "jpg";
 const BUILDING_PHOTO_DOC_PREFIX = "buildingPhoto_";
 const BUILDING_PHOTO_DB_NAME = "xunbaohuoBuildingPhotos";
 const BUILDING_PHOTO_STORE_NAME = "photos";
 const BUILDING_PHOTO_FULL_SIZES = [
+  [1080, 1920],
+  [960, 1707],
+  [900, 1600],
+  [810, 1440],
   [720, 1280],
   [640, 1138],
-  [540, 960],
-  [480, 854]
+  [540, 960]
 ];
-const BUILDING_PHOTO_QUALITIES = [0.66, 0.62, 0.58, 0.54, 0.5, 0.46, 0.42, 0.38];
-const BUILDING_PHOTO_CLOUD_TEXT_MULTIPLIER = 1.35;
-const FIREBASE_STORAGE_FREE_BYTES_ESTIMATE = 5 * 1024 * 1024 * 1024;
+const BUILDING_PHOTO_QUALITIES = [0.82, 0.78, 0.74, 0.7, 0.66, 0.62, 0.58, 0.54, 0.5, 0.46, 0.42];
 
 function getBuildingPhotoDocId(communityId, buildingId) {
   return `${BUILDING_PHOTO_DOC_PREFIX}${String(communityId || "community").replace(/[^a-zA-Z0-9_-]/g, "_")}_${String(buildingId || "building").replace(/[^a-zA-Z0-9_-]/g, "_")}`;
@@ -1919,107 +1822,11 @@ function normalizeBuildingPhotoMeta(photo) {
     thumbDataUrl: String(photo.thumbDataUrl || photo.thumbUrl || ""),
     mimeType: BUILDING_PHOTO_MIME_TYPE,
     ext: BUILDING_PHOTO_EXT,
-    sizeBytes: Number.isFinite(Number(photo.sizeBytes)) ? Math.round(Number(photo.sizeBytes)) : (Number.isFinite(Number(photo.sizeKB)) ? Math.round(Number(photo.sizeKB) * 1024) : undefined),
-    sizeKB: Number.isFinite(Number(photo.sizeKB)) ? Math.round(Number(photo.sizeKB)) : (Number.isFinite(Number(photo.sizeBytes)) ? Math.round(Number(photo.sizeBytes) / 1024) : undefined),
+    sizeKB: Number.isFinite(Number(photo.sizeKB)) ? Math.round(Number(photo.sizeKB)) : undefined,
     width: Number.isFinite(Number(photo.width)) ? Number(photo.width) : undefined,
     height: Number.isFinite(Number(photo.height)) ? Number(photo.height) : undefined,
     updatedAtMs: Number(photo.updatedAtMs || photo.createdAtMs || Date.now())
   };
-}
-
-function getBuildingPhotoStoredBytesFromMeta(photo) {
-  if (!photo) return 0;
-  if (Number.isFinite(Number(photo.sizeBytes))) return Math.max(0, Math.round(Number(photo.sizeBytes)));
-  if (Number.isFinite(Number(photo.sizeKB))) return Math.max(0, Math.round(Number(photo.sizeKB) * 1024));
-  return 0;
-}
-
-function getBuildingPhotoCloudEstimateBytesFromMeta(photo) {
-  const storedBytes = getBuildingPhotoStoredBytesFromMeta(photo);
-  return storedBytes ? Math.round(storedBytes * BUILDING_PHOTO_CLOUD_TEXT_MULTIPLIER) : 0;
-}
-
-function formatBytesForPhotoStorage(bytes) {
-  const value = Number(bytes) || 0;
-  if (value >= 1024 * 1024 * 1024) return `${(value / 1024 / 1024 / 1024).toFixed(2)} GB`;
-  if (value >= 1024 * 1024) return `${(value / 1024 / 1024).toFixed(1)} MB`;
-  if (value >= 1024) return `${Math.round(value / 1024)} KB`;
-  return `${Math.round(value)} B`;
-}
-
-function getBuildingPhotoCloudSizeLabel(building, record = null) {
-  const photo = getBuildingPhotoMeta(building);
-  const source = record || photo || {};
-  const bytes = getBuildingPhotoCloudEstimateBytesFromMeta(source);
-  if (!bytes) return "云端估算：—";
-  return `云端估算：约 ${formatBytesForPhotoStorage(bytes)}`;
-}
-
-function collectPhotoStorageStats() {
-  const activeCommunity = getActiveCommunity();
-  const communities = Array.isArray(appData.communities) ? appData.communities : [];
-  const makeEmpty = () => ({ count: 0, rawBytes: 0, cloudBytes: 0 });
-  const current = makeEmpty();
-  const total = makeEmpty();
-
-  communities.forEach((community) => {
-    (Array.isArray(community?.buildings) ? community.buildings : []).forEach((building) => {
-      const photo = getBuildingPhotoMeta(building);
-      if (!photo) return;
-      const rawBytes = getBuildingPhotoStoredBytesFromMeta(photo);
-      const cloudBytes = getBuildingPhotoCloudEstimateBytesFromMeta(photo);
-      total.count += 1;
-      total.rawBytes += rawBytes;
-      total.cloudBytes += cloudBytes;
-      if (activeCommunity && community.id === activeCommunity.id) {
-        current.count += 1;
-        current.rawBytes += rawBytes;
-        current.cloudBytes += cloudBytes;
-      }
-    });
-  });
-
-  return { current, total, activeCommunity };
-}
-
-function renderPhotoStorageStatsPanel() {
-  if (!photoStorageStatsContent) return;
-  const { current, total, activeCommunity } = collectPhotoStorageStats();
-  const percent = FIREBASE_STORAGE_FREE_BYTES_ESTIMATE > 0 ? (total.cloudBytes / FIREBASE_STORAGE_FREE_BYTES_ESTIMATE) * 100 : 0;
-  const percentText = percent > 0 && percent < 0.01 ? "小于 0.01%" : `${percent.toFixed(2)}%`;
-  const communityName = activeCommunity?.name || "当前公寓";
-
-  photoStorageStatsContent.innerHTML = `
-    <div class="photo-storage-stat-card">
-      <span>${escapeHtml(communityName)}</span>
-      <strong>${current.count} 张</strong>
-      <em>云端估算：约 ${formatBytesForPhotoStorage(current.cloudBytes)}</em>
-    </div>
-    <div class="photo-storage-stat-card">
-      <span>全部公寓</span>
-      <strong>${total.count} 张</strong>
-      <em>云端估算：约 ${formatBytesForPhotoStorage(total.cloudBytes)}</em>
-    </div>
-    <div class="photo-storage-stat-card is-soft">
-      <span>免费额度参考</span>
-      <strong>${formatBytesForPhotoStorage(FIREBASE_STORAGE_FREE_BYTES_ESTIMATE)}</strong>
-      <em>当前估算约占 ${percentText}</em>
-    </div>
-  `;
-}
-
-function openPhotoStorageStatsPanel() {
-  if (!photoStorageStatsPanel) return;
-  renderPhotoStorageStatsPanel();
-  photoStorageStatsPanel.classList.add("is-open");
-  photoStorageStatsPanel.setAttribute("aria-hidden", "false");
-  if (mobileModePanel) mobileModePanel.classList.remove("is-open");
-}
-
-function closePhotoStorageStatsPanel() {
-  if (!photoStorageStatsPanel) return;
-  photoStorageStatsPanel.classList.remove("is-open");
-  photoStorageStatsPanel.setAttribute("aria-hidden", "true");
 }
 
 function getBuildingPhotoMeta(building) {
@@ -2324,7 +2131,6 @@ async function handleBuildingPhotoFileSelected(event) {
       thumbDataUrl: compressed.thumbDataUrl,
       mimeType: BUILDING_PHOTO_MIME_TYPE,
       ext: BUILDING_PHOTO_EXT,
-      sizeBytes: compressed.sizeBytes,
       sizeKB: compressed.sizeKB,
       width: compressed.width,
       height: compressed.height,
@@ -2334,7 +2140,7 @@ async function handleBuildingPhotoFileSelected(event) {
     saveData();
     renderMap();
     if (selectedBuildingId === building.id) openBuildingPanel(building.id);
-    updateLocationStatus(cloudSaved ? `大楼照片已保存，云端估算约 ${formatBytesForPhotoStorage(Math.round(compressed.sizeBytes * BUILDING_PHOTO_CLOUD_TEXT_MULTIPLIER))}，并已同步` : `大楼照片已保存，云端估算约 ${formatBytesForPhotoStorage(Math.round(compressed.sizeBytes * BUILDING_PHOTO_CLOUD_TEXT_MULTIPLIER))}；云端未成功，本机可用`, cloudSaved ? "success" : "warning");
+    updateLocationStatus(cloudSaved ? `大楼照片已保存为 JPG，约 ${compressed.sizeKB}KB，并已同步云端` : `大楼照片已保存为 JPG，约 ${compressed.sizeKB}KB；云端未成功，本机可用`, cloudSaved ? "success" : "warning");
 
     if (viewingBuildingPhotoBuildingId === building.id) {
       openBuildingPhotoViewer(building.id);
@@ -2369,188 +2175,12 @@ async function loadBuildingPhotoRecord(building) {
   return null;
 }
 
-function getBuildingPhotoViewerBuildings() {
-  return getSortedBuildings().filter((building) => !!getBuildingPhotoMeta(building));
-}
-
-function getBuildingPhotoViewerIndex(buildingId) {
-  return getBuildingPhotoViewerBuildings().findIndex((building) => building.id === buildingId);
-}
-
-function resetBuildingPhotoViewerZoom() {
-  buildingPhotoViewerScale = 1;
-  buildingPhotoViewerTranslateX = 0;
-  buildingPhotoViewerTranslateY = 0;
-  applyBuildingPhotoViewerTransform();
-}
-
-function applyBuildingPhotoViewerTransform() {
-  if (!buildingPhotoViewerImage) return;
-  const scale = Math.max(1, Math.min(4, Number(buildingPhotoViewerScale) || 1));
-  const x = Number(buildingPhotoViewerTranslateX) || 0;
-  const y = Number(buildingPhotoViewerTranslateY) || 0;
-  buildingPhotoViewerImage.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
-}
-
-function getTouchDistance(touches) {
-  if (!touches || touches.length < 2) return 0;
-  const dx = touches[0].clientX - touches[1].clientX;
-  const dy = touches[0].clientY - touches[1].clientY;
-  return Math.hypot(dx, dy);
-}
-
-async function navigateBuildingPhotoByStep(step) {
-  const list = getBuildingPhotoViewerBuildings();
-  if (!list.length) return;
-  const currentIndex = getBuildingPhotoViewerIndex(viewingBuildingPhotoBuildingId);
-  if (currentIndex < 0) return;
-  const target = list[currentIndex + step];
-  if (!target) {
-    updateLocationStatus(step < 0 ? "已经是第一栋有照片的大楼" : "已经是最后一栋有照片的大楼", "warning");
-    return;
-  }
-  await openBuildingPhotoViewer(target.id, { preservePhotoOnly: true });
-}
-
-function handleBuildingPhotoViewerTouchStart(event) {
-  if (!buildingPhotoViewer || !buildingPhotoViewer.classList.contains("is-open")) return;
-  if (event.touches.length >= 2) {
-    buildingPhotoViewerTouchMode = "pinch";
-    buildingPhotoViewerPinchStartDistance = getTouchDistance(event.touches);
-    buildingPhotoViewerPinchStartScale = buildingPhotoViewerScale;
-    buildingPhotoViewerSuppressClickUntil = Date.now() + 350;
-    return;
-  }
-
-  const touch = event.touches[0];
-  if (!touch) return;
-  buildingPhotoViewerTouchMode = "swipe";
-  buildingPhotoViewerSwipeStartX = touch.clientX;
-  buildingPhotoViewerSwipeStartY = touch.clientY;
-}
-
-function handleBuildingPhotoViewerTouchMove(event) {
-  if (!buildingPhotoViewer || !buildingPhotoViewer.classList.contains("is-open")) return;
-
-  if (buildingPhotoViewerTouchMode === "pinch" && event.touches.length >= 2) {
-    const distance = getTouchDistance(event.touches);
-    if (!distance || !buildingPhotoViewerPinchStartDistance) return;
-    const nextScale = Math.max(1, Math.min(4, buildingPhotoViewerPinchStartScale * (distance / buildingPhotoViewerPinchStartDistance)));
-    if (Math.abs(nextScale - buildingPhotoViewerScale) > 0.01) {
-      buildingPhotoViewerScale = nextScale;
-      applyBuildingPhotoViewerTransform();
-    }
-    event.preventDefault();
-    return;
-  }
-
-  if (buildingPhotoViewerTouchMode === "swipe" && event.touches.length === 1) {
-    const touch = event.touches[0];
-    if (!touch) return;
-    const dx = touch.clientX - buildingPhotoViewerSwipeStartX;
-    const dy = touch.clientY - buildingPhotoViewerSwipeStartY;
-    if (Math.abs(dx) > 8 || Math.abs(dy) > 8) {
-      buildingPhotoViewerSuppressClickUntil = Date.now() + 300;
-    }
-  }
-}
-
-async function handleBuildingPhotoViewerTouchEnd(event) {
-  if (!buildingPhotoViewer || !buildingPhotoViewer.classList.contains("is-open")) return;
-
-  if (buildingPhotoViewerTouchMode === "pinch") {
-    buildingPhotoViewerTouchMode = "";
-    buildingPhotoViewerSuppressClickUntil = Date.now() + 350;
-    if (buildingPhotoViewerScale <= 1.02) resetBuildingPhotoViewerZoom();
-    return;
-  }
-
-  if (buildingPhotoViewerTouchMode !== "swipe") return;
-  buildingPhotoViewerTouchMode = "";
-
-  const touch = (event.changedTouches && event.changedTouches[0]) ? event.changedTouches[0] : null;
-  if (!touch) return;
-  const dx = touch.clientX - buildingPhotoViewerSwipeStartX;
-  const dy = touch.clientY - buildingPhotoViewerSwipeStartY;
-  const absDx = Math.abs(dx);
-  const absDy = Math.abs(dy);
-
-  if (buildingPhotoViewerScale > 1.02) {
-    buildingPhotoViewerSuppressClickUntil = Date.now() + 250;
-    return;
-  }
-
-  if (absDx >= 46 && absDx > absDy * 1.2) {
-    buildingPhotoViewerSuppressClickUntil = Date.now() + 400;
-    event.preventDefault();
-    if (dx < 0) await navigateBuildingPhotoByStep(-1);
-    else await navigateBuildingPhotoByStep(1);
-  }
-}
-
-async function requestImmersivePhotoFullscreen() {
-  document.documentElement.classList.add("photo-viewer-immersive");
-  document.body.classList.add("photo-viewer-immersive");
-
-  const target = buildingPhotoViewer || document.documentElement;
-  try {
-    if (document.fullscreenElement || document.webkitFullscreenElement) return;
-    if (target && typeof target.requestFullscreen === "function") {
-      await target.requestFullscreen({ navigationUI: "hide" });
-      return;
-    }
-    if (target && typeof target.webkitRequestFullscreen === "function") {
-      target.webkitRequestFullscreen();
-      return;
-    }
-    if (target && typeof target.webkitEnterFullscreen === "function") {
-      target.webkitEnterFullscreen();
-    }
-  } catch (error) {
-    console.warn("进入照片沉浸全屏失败：", error);
-  }
-}
-
-async function exitImmersivePhotoFullscreen() {
-  document.documentElement.classList.remove("photo-viewer-immersive");
-  document.body.classList.remove("photo-viewer-immersive");
-
-  try {
-    if (document.fullscreenElement && typeof document.exitFullscreen === "function") {
-      await document.exitFullscreen();
-      return;
-    }
-    if (document.webkitFullscreenElement && typeof document.webkitExitFullscreen === "function") {
-      document.webkitExitFullscreen();
-    }
-  } catch (error) {
-    console.warn("退出照片沉浸全屏失败：", error);
-  }
-}
-
-function setBuildingPhotoViewerPhotoOnly(enabled) {
-
-  if (!buildingPhotoViewer) return;
-  buildingPhotoViewer.classList.toggle("is-photo-only", !!enabled);
-  if (enabled) requestImmersivePhotoFullscreen();
-  else exitImmersivePhotoFullscreen();
-}
-
-function toggleBuildingPhotoViewerPhotoOnly() {
-  if (!buildingPhotoViewer || !buildingPhotoViewer.classList.contains("is-open")) return;
-  setBuildingPhotoViewerPhotoOnly(!buildingPhotoViewer.classList.contains("is-photo-only"));
-}
-
-async function openBuildingPhotoViewer(buildingId, options = {}) {
+async function openBuildingPhotoViewer(buildingId) {
   const building = getBuildingById(buildingId || selectedBuildingId);
   if (!building || !buildingPhotoViewer || !buildingPhotoViewerImage) return;
 
-  const keepPhotoOnly = !!options.preservePhotoOnly && !!(buildingPhotoViewer && buildingPhotoViewer.classList.contains("is-photo-only"));
   viewingBuildingPhotoBuildingId = building.id;
   if (buildingPhotoViewerTitle) buildingPhotoViewerTitle.innerText = getBuildingPhotoTitle(building);
-  if (buildingPhotoCloudSizeText) buildingPhotoCloudSizeText.innerText = getBuildingPhotoCloudSizeLabel(building);
-  setBuildingPhotoViewerPhotoOnly(keepPhotoOnly);
-  resetBuildingPhotoViewerZoom();
   buildingPhotoViewerImage.removeAttribute("src");
   buildingPhotoViewer.classList.add("is-open");
   buildingPhotoViewer.setAttribute("aria-hidden", "false");
@@ -2564,13 +2194,11 @@ async function openBuildingPhotoViewer(buildingId, options = {}) {
   }
 
   buildingPhotoViewerImage.src = record.dataUrl;
-  if (buildingPhotoCloudSizeText) buildingPhotoCloudSizeText.innerText = getBuildingPhotoCloudSizeLabel(building, record);
   updateLocationStatus("已打开大楼照片", "success");
 }
 
 function closeBuildingPhotoViewer() {
   if (!buildingPhotoViewer) return;
-  setBuildingPhotoViewerPhotoOnly(false);
   buildingPhotoViewer.classList.remove("is-open");
   buildingPhotoViewer.setAttribute("aria-hidden", "true");
   viewingBuildingPhotoBuildingId = null;
@@ -2605,29 +2233,12 @@ async function deleteCurrentBuildingPhoto() {
   }
 }
 
-function shouldIgnoreBuildingPhotoGhostClick() {
-  return isMobileKeypadOnlyMode() && !mobileEditMode && Date.now() - lastBuildingPhotoActionOpenedAt < 900;
-}
-
 function openBuildingPhotoActionPopup(marker, building) {
   if (!marker || !building) return;
-  lastBuildingPhotoActionOpenedAt = Date.now();
   const hasPhoto = !!getBuildingPhotoMeta(building);
   const title = getBuildingPhotoTitle(building);
   const wrap = document.createElement("div");
   wrap.className = "building-photo-action-popup";
-
-  // 手机端长按打开弹窗后，松手会产生一次 touchend/click。
-  // 这里阻止事件冒泡到 Leaflet 地图，避免弹窗刚打开又被地图点击关闭。
-  if (window.L && L.DomEvent) {
-    L.DomEvent.disableClickPropagation(wrap);
-    L.DomEvent.disableScrollPropagation(wrap);
-  }
-  ["click", "touchstart", "touchend", "pointerdown", "pointerup", "contextmenu"].forEach((eventName) => {
-    wrap.addEventListener(eventName, (event) => {
-      event.stopPropagation();
-    }, { passive: true });
-  });
 
   const heading = document.createElement("div");
   heading.className = "building-photo-action-title";
@@ -2676,8 +2287,6 @@ function openBuildingPhotoActionPopup(marker, building) {
 
   L.popup({
     closeButton: false,
-    closeOnClick: false,
-    autoClose: true,
     autoPan: true,
     className: "building-photo-action-popup-shell",
     offset: [0, -8]
@@ -2748,10 +2357,6 @@ function renderCommunitySearchPositions() {
     });
 
     marker.on("click", (event) => {
-      if (shouldIgnoreBuildingPhotoGhostClick()) {
-        if (event?.originalEvent && L?.DomEvent?.stop) L.DomEvent.stop(event.originalEvent);
-        return;
-      }
       if (isMobileKeypadOnlyMode() && !mobileEditMode && displayMode === "communitySearch") {
         if (event?.originalEvent && L?.DomEvent?.stop) L.DomEvent.stop(event.originalEvent);
         openDeliveryActionPopup(marker, target);
@@ -3017,13 +2622,7 @@ function renderSelectedPositions(building) {
       saveData();
     });
 
-    marker.on("click", (event) => {
-      if (shouldIgnoreBuildingPhotoGhostClick()) {
-        if (event?.originalEvent && L?.DomEvent?.stop) L.DomEvent.stop(event.originalEvent);
-        return;
-      }
-      marker.openTooltip();
-    });
+    marker.on("click", () => marker.openTooltip());
     marker.on("contextmenu", (event) => {
       if (isMobileKeypadOnlyMode() && !mobileEditMode) {
         if (event?.originalEvent && L?.DomEvent?.stop) L.DomEvent.stop(event.originalEvent);
@@ -4054,8 +3653,6 @@ function convertFlatMarkersToCommunity(data, name = "默认公寓") {
     createdAt: new Date().toISOString(),
     lat: DEFAULT_CENTER[0],
     lng: DEFAULT_CENTER[1],
-    entryCode: "",
-    packageRoomCode: "",
     buildings: []
   };
 
@@ -4108,8 +3705,6 @@ function normalizeLoadedData(data) {
         createdAt: community.createdAt || new Date().toISOString(),
         lat: Number.isFinite(Number(community.lat)) ? Number(community.lat) : (getCommunityCenterLatLng(community) || DEFAULT_CENTER)[0],
         lng: Number.isFinite(Number(community.lng)) ? Number(community.lng) : (getCommunityCenterLatLng(community) || DEFAULT_CENTER)[1],
-        entryCode: String(community.entryCode || community.gateCode || "").trim(),
-        packageRoomCode: String(community.packageRoomCode || community.packageCode || community.storageRoomCode || "").trim(),
         buildings: normalizeBuildingList(community.buildings)
       }))
     };
@@ -4129,8 +3724,6 @@ function normalizeLoadedData(data) {
       createdAt: new Date().toISOString(),
       lat: (getCommunityCenterLatLng({ buildings: data.buildings }) || DEFAULT_CENTER)[0],
       lng: (getCommunityCenterLatLng({ buildings: data.buildings }) || DEFAULT_CENTER)[1],
-      entryCode: String(data.entryCode || data.gateCode || "").trim(),
-      packageRoomCode: String(data.packageRoomCode || data.packageCode || data.storageRoomCode || "").trim(),
       buildings: normalizeBuildingList(data.buildings)
     };
 
@@ -4458,8 +4051,6 @@ let cloudLastSyncedJson = "";
 let cloudLastRemoteUpdatedAtMs = 0;
 let cloudLocalDirtySinceMs = 0;
 let cloudLocalPendingJson = "";
-let cloudRecoveryReadOnlyMode = false;
-let cloudFallbackLoadBusy = false;
 
 const cloudSyncState = {
   app: null,
@@ -4623,14 +4214,6 @@ function applyCloudDataToLocal(remoteData, remoteUpdatedAtMs, remoteDeviceId) {
 async function uploadCurrentDataToCloud() {
   if (!initialDataLoadDone || cloudApplyingRemote) return;
 
-  if (cloudRecoveryReadOnlyMode) {
-    cloudUploadQueued = false;
-    clearTimeout(cloudUploadTimer);
-    cloudUploadTimer = null;
-    updateCloudSyncStatus("恢复读取模式：为保护旧资料，当前修改不会写回云端", "warning");
-    return;
-  }
-
   if (!navigator.onLine) {
     cloudUploadQueued = true;
     updateCloudSyncStatus("离线，本机已保存，联网后自动同步", "warning");
@@ -4703,118 +4286,6 @@ function getCloudFriendlyError(error, fallback) {
   return `${fallback}：${message || "未知错误"}`;
 }
 
-
-function countCloudMapRecords(data) {
-  const communities = Array.isArray(data?.communities) ? data.communities : [];
-  let buildings = 0;
-  let numbers = 0;
-
-  communities.forEach((community) => {
-    const list = Array.isArray(community?.buildings) ? community.buildings : [];
-    buildings += list.length;
-    list.forEach((building) => {
-      numbers += Array.isArray(building?.positions) ? building.positions.length : 0;
-    });
-  });
-
-  return { communities: communities.length, buildings, numbers };
-}
-
-async function loadFallbackCloudMapData() {
-  if (cloudFallbackLoadBusy) return null;
-  cloudFallbackLoadBusy = true;
-
-  try {
-    const db = await ensureCloudReady();
-    const targets = [
-      { collection: "communityMaps", document: "main" },
-      { collection: "xunbaohuo_free_cloud", document: "main_map_data" }
-    ];
-
-    const extracted = [];
-    const sourceMessages = [];
-
-    for (const target of targets) {
-      try {
-        const snapshot = await db.collection(target.collection).doc(target.document).get();
-        if (!snapshot.exists) {
-          sourceMessages.push(`${target.collection}/${target.document}：不存在`);
-          continue;
-        }
-
-        const raw = cloudExportPlainValue(snapshot.data());
-        const found = cloudExportExtractCommunities(
-          raw,
-          `${target.collection}/${target.document}`
-        );
-
-        found.forEach((item) => extracted.push({
-          ...item,
-          source: `${target.collection}/${target.document}`
-        }));
-
-        const localMerged = cloudExportMergeCommunities(found);
-        const localCount = cloudExportCount(localMerged);
-        sourceMessages.push(
-          `${target.collection}/${target.document}：${localCount.communities} 个公寓、${localCount.numbers} 个号码`
-        );
-      } catch (error) {
-        sourceMessages.push(
-          `${target.collection}/${target.document}：读取失败 ${error?.message || error}`
-        );
-      }
-    }
-
-    const communities = cloudExportMergeCommunities(extracted);
-    const fallbackData = normalizeLoadedData({
-      version: 3,
-      activeCommunityId: communities[0]?.id || null,
-      communities
-    });
-    const count = countCloudMapRecords(fallbackData);
-
-    return {
-      data: fallbackData,
-      count,
-      sourceMessages
-    };
-  } finally {
-    cloudFallbackLoadBusy = false;
-  }
-}
-
-async function applyFallbackCloudDataWhenNeeded(reasonText = "主资料没有号码") {
-  const fallback = await loadFallbackCloudMapData();
-  if (!fallback || fallback.count.numbers <= 0) {
-    updateCloudSyncStatus(
-      `${reasonText}，另外两个云端主文档也没有找到可显示号码`,
-      "warning"
-    );
-    return false;
-  }
-
-  cloudRecoveryReadOnlyMode = true;
-  cloudApplyingRemote = true;
-
-  try {
-    if (hasUsefulLocalCloudData()) saveSafetyBackup();
-    appData = fallback.data;
-    saveData({ skipCloudSync: true });
-    refreshMapAfterCloudDataChange();
-
-    updateCloudSyncStatus(
-      `恢复读取模式：${fallback.count.communities} 个公寓、${fallback.count.buildings} 栋楼、${fallback.count.numbers} 个号码；暂时禁止写回云端`,
-      "warning"
-    );
-  } finally {
-    cloudApplyingRemote = false;
-  }
-
-  console.info("云端备用来源读取结果：", fallback.sourceMessages);
-  return true;
-}
-
-
 async function startCloudAutoSync() {
   if (cloudListenerStarted) return;
   cloudListenerStarted = true;
@@ -4823,14 +4294,15 @@ async function startCloudAutoSync() {
   try {
     const ref = await getCloudDocumentReference();
     cloudSnapshotUnsubscribe = ref.onSnapshot(
-      async (snapshot) => {
+      (snapshot) => {
         if (!snapshot.exists) {
           cloudLastSyncedJson = "";
           cloudLastRemoteUpdatedAtMs = 0;
-
-          const recovered = await applyFallbackCloudDataWhenNeeded("community_map_cloud_data/mainData 不存在");
-          if (!recovered) {
-            updateCloudSyncStatus("已连接，但所有已知云端主文档都没有号码", "warning");
+          if (hasUsefulLocalCloudData()) {
+            updateCloudSyncStatus("云端为空，正在建立同步资料...", "info");
+            queueCloudAutoUpload();
+          } else {
+            updateCloudSyncStatus("已连接，暂无地图资料", "info");
           }
           return;
         }
@@ -4838,19 +4310,7 @@ async function startCloudAutoSync() {
         const remote = snapshot.data() || {};
         const remoteData = normalizeRemoteCloudData(remote);
         const remoteUpdatedAtMs = getRemoteUpdatedTime(remote) || Date.now();
-        const remoteCount = countCloudMapRecords(remoteData);
 
-        if (remoteCount.numbers <= 0) {
-          const recovered = await applyFallbackCloudDataWhenNeeded(
-            "community_map_cloud_data/mainData 当前没有号码"
-          );
-          if (!recovered) {
-            applyCloudDataToLocal(remoteData, remoteUpdatedAtMs, remote.deviceId);
-          }
-          return;
-        }
-
-        cloudRecoveryReadOnlyMode = false;
         applyCloudDataToLocal(remoteData, remoteUpdatedAtMs, remote.deviceId);
       },
       (error) => {
@@ -5667,22 +5127,6 @@ function confirmNumberPadInput() {
   if (ok) closeNumberPad();
 }
 
-document.addEventListener("fullscreenchange", function () {
-  const active = !!document.fullscreenElement;
-  if (!active && buildingPhotoViewer && !buildingPhotoViewer.classList.contains("is-photo-only")) {
-    document.documentElement.classList.remove("photo-viewer-immersive");
-    document.body.classList.remove("photo-viewer-immersive");
-  }
-});
-
-document.addEventListener("webkitfullscreenchange", function () {
-  const active = !!document.webkitFullscreenElement;
-  if (!active && buildingPhotoViewer && !buildingPhotoViewer.classList.contains("is-photo-only")) {
-    document.documentElement.classList.remove("photo-viewer-immersive");
-    document.body.classList.remove("photo-viewer-immersive");
-  }
-});
-
 window.addEventListener("keydown", function (event) {
   if (!isNumberPadOpen()) return;
   if (event.ctrlKey || event.metaKey || event.altKey) return;
@@ -5746,1247 +5190,12 @@ document.getElementById("menuBtn").addEventListener("click", function () {
 });
 if (closeMobileModePanelBtn) closeMobileModePanelBtn.addEventListener("click", closeMobileModePanel);
 if (mobileToggleEditModeBtn) mobileToggleEditModeBtn.addEventListener("click", toggleMobileEditMode);
-if (openCommunityPasswordBtn) openCommunityPasswordBtn.addEventListener("click", openCommunityPasswordPanel);
-if (closeCommunityPasswordPanelBtn) closeCommunityPasswordPanelBtn.addEventListener("click", closeCommunityPasswordPanel);
-if (cancelCommunityPasswordBtn) cancelCommunityPasswordBtn.addEventListener("click", closeCommunityPasswordPanel);
-if (saveCommunityPasswordBtn) saveCommunityPasswordBtn.addEventListener("click", saveCommunityPassword);
 if (mobileImportJsonBtn) mobileImportJsonBtn.addEventListener("click", openJsonImportPicker);
 if (mobileExportJsonBtn) mobileExportJsonBtn.addEventListener("click", exportMarkers);
 if (mobileOpenSettingsBtn) mobileOpenSettingsBtn.addEventListener("click", function () {
   closeMobileModePanel();
   settingsPanel.classList.toggle("is-open");
 });
-
-
-/* =========================================================
-   全部 Firestore 云端资料提取
-   - 只读取，不写入、不删除、不修改 Firebase
-   - 原始备份会保存扫描到的全部文档
-   - 整理版会尽量转换为 communities → buildings → positions
-   ========================================================= */
-const CLOUD_EXPORT_COLLECTIONS = [
-  "community_map_cloud_data",
-  "communityMaps",
-  "xunbaohuo_free_cloud"
-];
-
-const exportAllCloudRawBtn = document.getElementById("exportAllCloudRawBtn");
-const exportAllCloudAppBtn = document.getElementById("exportAllCloudAppBtn");
-const cloudExportProgress = document.getElementById("cloudExportProgress");
-const analyzeCloudStructureBtn = document.getElementById("analyzeCloudStructureBtn");
-const cloudStructureSummary = document.getElementById("cloudStructureSummary");
-const scanLocalHistoryBtn = document.getElementById("scanLocalHistoryBtn");
-const downloadLocalHistoryBtn = document.getElementById("downloadLocalHistoryBtn");
-const localHistoryStatus = document.getElementById("localHistoryStatus");
-const localHistoryResults = document.getElementById("localHistoryResults");
-let localHistoryLastReport = null;
-
-
-function setCloudExportProgress(message, tone = "") {
-  if (!cloudExportProgress) return;
-  cloudExportProgress.textContent = message;
-  cloudExportProgress.className = "cloud-export-progress";
-  if (tone) cloudExportProgress.classList.add(`is-${tone}`);
-}
-
-function cloudExportPlainValue(value) {
-  if (value == null) return value;
-  if (typeof value?.toDate === "function") return value.toDate().toISOString();
-  if (Array.isArray(value)) return value.map(cloudExportPlainValue);
-  if (typeof value === "object") {
-    const out = {};
-    Object.entries(value).forEach(([key, item]) => {
-      out[key] = cloudExportPlainValue(item);
-    });
-    return out;
-  }
-  return value;
-}
-
-function cloudExportAsArray(value) {
-  if (Array.isArray(value)) return value;
-  if (value && typeof value === "object") {
-    return Object.entries(value).map(([key, item]) => {
-      if (item && typeof item === "object") return { _sourceKey: key, ...item };
-      return { _sourceKey: key, value: item };
-    });
-  }
-  return [];
-}
-
-function cloudExportText(value) {
-  return String(value ?? "").trim();
-}
-
-function cloudExportNumber(value) {
-  const result = Number(value);
-  return Number.isFinite(result) ? result : null;
-}
-
-function cloudExportClone(value) {
-  return JSON.parse(JSON.stringify(value));
-}
-
-function cloudExportMakeId(prefix) {
-  return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
-function cloudExportUnwrapCandidates(raw) {
-  const found = [];
-  const seen = new Set();
-
-  function visit(value, path, depth) {
-    if (!value || typeof value !== "object" || depth > 8 || seen.has(value)) return;
-    seen.add(value);
-    found.push({ value, path });
-
-    ["data", "appData", "mapData", "payload", "state", "backup", "content", "value"].forEach((key) => {
-      if (value[key] && typeof value[key] === "object") {
-        visit(value[key], `${path}.${key}`, depth + 1);
-      }
-    });
-  }
-
-  visit(raw, "root", 0);
-  return found;
-}
-
-function cloudExportNormalizePosition(item, index) {
-  if (!item || typeof item !== "object") return null;
-
-  const position = cloudExportText(
-    item.position ?? item.number ?? item.unit ?? item.label ?? item.name ?? item.original
-  );
-  const lat = cloudExportNumber(item.lat ?? item.latitude ?? item.positionLat);
-  const lng = cloudExportNumber(item.lng ?? item.longitude ?? item.lon ?? item.positionLng);
-  const originals = cloudExportAsArray(item.originals)
-    .map((value) => cloudExportText(value?.value ?? value))
-    .filter(Boolean);
-
-  if (!position && lat === null && lng === null) return null;
-
-  return {
-    ...cloudExportClone(item),
-    id: cloudExportText(item.id) || cloudExportMakeId("position"),
-    position: position || `未命名-${index + 1}`,
-    lat,
-    lng,
-    originals: originals.length ? originals : [position].filter(Boolean)
-  };
-}
-
-function cloudExportNormalizeBuilding(item, index) {
-  if (!item || typeof item !== "object") return null;
-
-  let positions = cloudExportAsArray(
-    item.positions ?? item.numbers ?? item.units ?? item.markers ?? item.apartments
-  ).map(cloudExportNormalizePosition).filter(Boolean);
-
-  if (!positions.length && (
-    item.position != null || item.number != null || item.unit != null ||
-    item.lat != null || item.lng != null
-  )) {
-    const single = cloudExportNormalizePosition(item, 0);
-    if (single) positions = [single];
-  }
-
-  const name = cloudExportText(item.name ?? item.building ?? item.label ?? item.groupName);
-  if (!positions.length && !name) return null;
-
-  return {
-    ...cloudExportClone(item),
-    id: cloudExportText(item.id) || cloudExportMakeId("building"),
-    name: name || `楼栋-${index + 1}`,
-    lat: cloudExportNumber(item.lat ?? item.latitude),
-    lng: cloudExportNumber(item.lng ?? item.longitude ?? item.lon),
-    positions
-  };
-}
-
-function cloudExportNormalizeCommunity(item, index, sourceName) {
-  if (!item || typeof item !== "object") return null;
-
-  let buildings = cloudExportAsArray(
-    item.buildings ?? item.groups ?? item.blocks
-  ).map(cloudExportNormalizeBuilding).filter(Boolean);
-
-  if (!buildings.length) {
-    const positions = cloudExportAsArray(
-      item.positions ?? item.numbers ?? item.units ?? item.markers
-    ).map(cloudExportNormalizePosition).filter(Boolean);
-
-    if (positions.length) {
-      buildings = [{
-        id: cloudExportMakeId("building"),
-        name: "独立编号",
-        positions
-      }];
-    }
-  }
-
-  if (!buildings.length) return null;
-
-  return {
-    ...cloudExportClone(item),
-    id: cloudExportText(item.id) || cloudExportMakeId("community"),
-    name: cloudExportText(
-      item.name ?? item.communityName ?? item.address ?? item.title
-    ) || `${sourceName}-${index + 1}`,
-    type: "universal",
-    lat: cloudExportNumber(item.lat ?? item.latitude),
-    lng: cloudExportNumber(item.lng ?? item.longitude ?? item.lon),
-    buildings
-  };
-}
-
-function cloudExportExtractCommunities(raw, sourceName) {
-  const result = [];
-
-  cloudExportUnwrapCandidates(raw).forEach(({ value, path }) => {
-    let candidates = [];
-
-    if (Array.isArray(value.communities) ||
-        (value.communities && typeof value.communities === "object")) {
-      candidates = cloudExportAsArray(value.communities);
-    } else if (Array.isArray(value.buildings) ||
-               (value.buildings && typeof value.buildings === "object")) {
-      candidates = [{
-        id: value.id,
-        name: value.communityName ?? value.name ?? sourceName,
-        lat: value.lat,
-        lng: value.lng,
-        buildings: value.buildings
-      }];
-    } else if (Array.isArray(value)) {
-      const positions = value.map(cloudExportNormalizePosition).filter(Boolean);
-      if (positions.length) {
-        candidates = [{
-          name: sourceName,
-          buildings: [{ name: "旧版标记", positions }]
-        }];
-      }
-    }
-
-    candidates
-      .map((candidate, index) => cloudExportNormalizeCommunity(candidate, index, sourceName))
-      .filter(Boolean)
-      .forEach((community) => result.push({ community, path }));
-  });
-
-  return result;
-}
-
-function cloudExportPositionKey(position) {
-  const id = cloudExportText(position?.id);
-  if (id) return `id:${id}`;
-
-  const lat = cloudExportNumber(position?.lat);
-  const lng = cloudExportNumber(position?.lng);
-  return [
-    "value",
-    cloudExportText(position?.position),
-    lat === null ? "" : lat.toFixed(7),
-    lng === null ? "" : lng.toFixed(7)
-  ].join("|");
-}
-
-function cloudExportMergeCommunities(items) {
-  const communityMap = new Map();
-
-  items.forEach((entry) => {
-    const community = cloudExportClone(entry.community || entry);
-    const communityKey =
-      cloudExportText(community.id) ||
-      cloudExportText(community.name).toLowerCase() ||
-      cloudExportMakeId("community-key");
-
-    let targetCommunity = communityMap.get(communityKey);
-    if (!targetCommunity) {
-      targetCommunity = { ...community, buildings: [] };
-      communityMap.set(communityKey, targetCommunity);
-    }
-
-    const buildingMap = new Map(
-      targetCommunity.buildings.map((building) => [
-        cloudExportText(building.id) || cloudExportText(building.name).toLowerCase(),
-        building
-      ])
-    );
-
-    cloudExportAsArray(community.buildings).forEach((building) => {
-      const buildingKey =
-        cloudExportText(building.id) ||
-        cloudExportText(building.name).toLowerCase() ||
-        cloudExportMakeId("building-key");
-
-      let targetBuilding = buildingMap.get(buildingKey);
-      if (!targetBuilding) {
-        targetBuilding = { ...cloudExportClone(building), positions: [] };
-        targetCommunity.buildings.push(targetBuilding);
-        buildingMap.set(buildingKey, targetBuilding);
-      }
-
-      const knownPositions = new Set(
-        targetBuilding.positions.map(cloudExportPositionKey)
-      );
-
-      cloudExportAsArray(building.positions).forEach((position) => {
-        const key = cloudExportPositionKey(position);
-        if (!knownPositions.has(key)) {
-          targetBuilding.positions.push(cloudExportClone(position));
-          knownPositions.add(key);
-        }
-      });
-    });
-  });
-
-  return [...communityMap.values()].filter((community) =>
-    cloudExportAsArray(community.buildings).some(
-      (building) => cloudExportAsArray(building.positions).length > 0
-    )
-  );
-}
-
-function cloudExportCount(communities) {
-  const buildingCount = communities.reduce(
-    (sum, community) => sum + cloudExportAsArray(community.buildings).length,
-    0
-  );
-  const numberCount = communities.reduce(
-    (sum, community) => sum + cloudExportAsArray(community.buildings).reduce(
-      (buildingSum, building) =>
-        buildingSum + cloudExportAsArray(building.positions).length,
-      0
-    ),
-    0
-  );
-
-  return {
-    communities: communities.length,
-    buildings: buildingCount,
-    numbers: numberCount
-  };
-}
-
-function cloudExportDownloadJson(data, filename) {
-  const blob = new Blob([JSON.stringify(data, null, 2)], {
-    type: "application/json;charset=utf-8"
-  });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
-}
-
-async function cloudExportScanAllDocuments() {
-  const db = await ensureCloudReady();
-  const documents = [];
-  const extracted = [];
-  const sourceReport = [];
-
-  for (const collectionName of CLOUD_EXPORT_COLLECTIONS) {
-    setCloudExportProgress(`正在扫描：${collectionName}……`, "working");
-
-    try {
-      const querySnapshot = await db.collection(collectionName).get();
-
-      for (const documentSnapshot of querySnapshot.docs) {
-        const plainData = cloudExportPlainValue(documentSnapshot.data());
-        const source = `${collectionName}/${documentSnapshot.id}`;
-        const isPhotoDocument =
-          /^buildingPhoto_/i.test(documentSnapshot.id) ||
-          !!plainData?.photoDataUrl ||
-          !!plainData?.thumbDataUrl;
-
-        documents.push({
-          collection: collectionName,
-          document: documentSnapshot.id,
-          isPhotoDocument,
-          data: plainData
-        });
-
-        if (isPhotoDocument) {
-          sourceReport.push({
-            source,
-            type: "photo",
-            communities: 0,
-            buildings: 0,
-            numbers: 0,
-            note: "照片文档已保存在原始备份，不会当作号码"
-          });
-          continue;
-        }
-
-        const found = cloudExportExtractCommunities(plainData, source);
-        const localCommunities = cloudExportMergeCommunities(found);
-        const localCount = cloudExportCount(localCommunities);
-
-        found.forEach((item) => {
-          extracted.push({ ...item, source });
-        });
-
-        sourceReport.push({
-          source,
-          type: "map-data",
-          ...localCount,
-          paths: [...new Set(found.map((item) => item.path))]
-        });
-      }
-    } catch (error) {
-      sourceReport.push({
-        source: `${collectionName}/*`,
-        type: "error",
-        communities: 0,
-        buildings: 0,
-        numbers: 0,
-        note: error?.message || String(error)
-      });
-    }
-  }
-
-  const communities = cloudExportMergeCommunities(extracted);
-  const totals = cloudExportCount(communities);
-
-  return {
-    documents,
-    communities,
-    sourceReport,
-    totals
-  };
-}
-
-async function exportAllCloudRawData() {
-  if (!exportAllCloudRawBtn) return;
-
-  exportAllCloudRawBtn.disabled = true;
-  if (exportAllCloudAppBtn) exportAllCloudAppBtn.disabled = true;
-
-  try {
-    setCloudExportProgress("正在扫描全部 Firestore 文档，请不要关闭页面……", "working");
-    const result = await cloudExportScanAllDocuments();
-
-    const payload = {
-      exportType: "firestore-complete-raw-backup",
-      projectId: firebaseConfig.projectId,
-      generatedAt: new Date().toISOString(),
-      warning: "这是只读完整备份。确认整理版完整以前，请勿删除 Firebase 旧文档。",
-      totalsRecognized: result.totals,
-      sourceReport: result.sourceReport,
-      documents: result.documents
-    };
-
-    const date = new Date().toISOString().slice(0, 10);
-    cloudExportDownloadJson(payload, `Firestore-全部云端原始备份-${date}.json`);
-
-    setCloudExportProgress(
-      `原始备份下载完成。\n扫描 ${result.documents.length} 个文档；识别到 ${result.totals.communities} 个公寓、${result.totals.buildings} 个楼栋、${result.totals.numbers} 个号码。`,
-      "success"
-    );
-  } catch (error) {
-    console.error(error);
-    setCloudExportProgress(`提取失败：${error?.message || error}`, "error");
-  } finally {
-    exportAllCloudRawBtn.disabled = false;
-    if (exportAllCloudAppBtn) exportAllCloudAppBtn.disabled = false;
-  }
-}
-
-async function exportAllCloudAsAppJson() {
-  if (!exportAllCloudAppBtn) return;
-
-  exportAllCloudAppBtn.disabled = true;
-  if (exportAllCloudRawBtn) exportAllCloudRawBtn.disabled = true;
-
-  try {
-    setCloudExportProgress("正在扫描并整理所有云端地图资料……", "working");
-    const result = await cloudExportScanAllDocuments();
-
-    const activeCommunityId =
-      result.communities.find((community) => community.id === appData?.activeCommunityId)?.id ||
-      result.communities[0]?.id ||
-      null;
-
-    const payload = {
-      version: 3,
-      activeCommunityId,
-      communities: result.communities,
-      extractionMeta: {
-        projectId: firebaseConfig.projectId,
-        generatedAt: new Date().toISOString(),
-        scannedDocuments: result.documents.length,
-        totals: result.totals,
-        sourceReport: result.sourceReport,
-        warning: "导入 APP 前请核对数量；原 Firebase 文档不会被这个导出动作修改。"
-      }
-    };
-
-    const date = new Date().toISOString().slice(0, 10);
-    cloudExportDownloadJson(payload, `地图APP-全部云端整理版-${date}.json`);
-
-    setCloudExportProgress(
-      `APP 整理版下载完成。\n共 ${result.totals.communities} 个公寓、${result.totals.buildings} 个楼栋、${result.totals.numbers} 个号码。\n请先把 JSON 发给我核对，不要马上清空或删除旧资料。`,
-      "success"
-    );
-  } catch (error) {
-    console.error(error);
-    setCloudExportProgress(`整理失败：${error?.message || error}`, "error");
-  } finally {
-    exportAllCloudAppBtn.disabled = false;
-    if (exportAllCloudRawBtn) exportAllCloudRawBtn.disabled = false;
-  }
-}
-
-
-function cloudStructureDescribeContainer(value) {
-  if (Array.isArray(value)) return { type: "array", count: value.length, entries: value.map((item, index) => [String(index), item]) };
-  if (value && typeof value === "object") {
-    const entries = Object.entries(value);
-    return { type: "object", count: entries.length, entries };
-  }
-  return { type: typeof value, count: 0, entries: [] };
-}
-
-function cloudStructureGetNestedAppData(raw) {
-  if (!raw || typeof raw !== "object") return null;
-  if (raw.appData && typeof raw.appData === "object") return raw.appData;
-  if (raw.data && typeof raw.data === "object") {
-    if (raw.data.appData && typeof raw.data.appData === "object") return raw.data.appData;
-    return raw.data;
-  }
-  if (raw.mapData && typeof raw.mapData === "object") return raw.mapData;
-  return raw;
-}
-
-function cloudStructureAnalyzeCommunities(raw, source) {
-  const appLike = cloudStructureGetNestedAppData(raw);
-  const communitiesValue = appLike?.communities;
-  const container = cloudStructureDescribeContainer(communitiesValue);
-  const communities = [];
-
-  container.entries.forEach(([key, value], index) => {
-    const community = value && typeof value === "object" ? value : {};
-    const buildingsValue = community.buildings ?? community.groups ?? community.blocks;
-    const buildingContainer = cloudStructureDescribeContainer(buildingsValue);
-
-    let numberCount = 0;
-    const buildings = [];
-
-    buildingContainer.entries.forEach(([buildingKey, buildingValue], buildingIndex) => {
-      const building = buildingValue && typeof buildingValue === "object" ? buildingValue : {};
-      const positionsValue = building.positions ?? building.numbers ?? building.units ?? building.markers ?? building.apartments;
-      const positionContainer = cloudStructureDescribeContainer(positionsValue);
-      numberCount += positionContainer.count;
-
-      buildings.push({
-        key: buildingKey,
-        index: buildingIndex,
-        id: cloudExportText(building.id),
-        name: cloudExportText(building.name ?? building.building ?? building.label ?? building.groupName) || `楼栋-${buildingIndex + 1}`,
-        positionsType: positionContainer.type,
-        positionsCount: positionContainer.count,
-        fieldNames: Object.keys(building)
-      });
-    });
-
-    communities.push({
-      key,
-      index,
-      id: cloudExportText(community.id),
-      name: cloudExportText(community.name ?? community.communityName ?? community.address ?? community.title) || `公寓-${index + 1}`,
-      buildingsType: buildingContainer.type,
-      buildingsCount: buildingContainer.count,
-      numbersCount: numberCount,
-      fieldNames: Object.keys(community),
-      buildings
-    });
-  });
-
-  return {
-    source,
-    appDataFieldNames: appLike && typeof appLike === "object" ? Object.keys(appLike) : [],
-    communitiesType: container.type,
-    communitiesCount: container.count,
-    activeCommunityId: cloudExportText(appLike?.activeCommunityId),
-    communities
-  };
-}
-
-function cloudStructureCommunityIdentity(item) {
-  const id = cloudExportText(item.id);
-  if (id) return `id:${id}`;
-  const name = cloudExportText(item.name).toLowerCase();
-  return `name:${name}`;
-}
-
-function cloudStructureBuildComparison(analyses) {
-  const map = new Map();
-
-  analyses.forEach((analysis) => {
-    analysis.communities.forEach((community) => {
-      const key = cloudStructureCommunityIdentity(community);
-      if (!map.has(key)) {
-        map.set(key, {
-          key,
-          id: community.id,
-          name: community.name,
-          sources: []
-        });
-      }
-      map.get(key).sources.push({
-        source: analysis.source,
-        buildingsCount: community.buildingsCount,
-        numbersCount: community.numbersCount
-      });
-    });
-  });
-
-  return [...map.values()].sort((a, b) =>
-    String(a.name).localeCompare(String(b.name), "zh-CN", { numeric: true })
-  );
-}
-
-function cloudStructureBuildText(report) {
-  const lines = [];
-  lines.push(`分析时间：${report.generatedAt}`);
-  lines.push(`Firebase 项目：${report.projectId}`);
-  lines.push("");
-
-  report.analyses.forEach((analysis) => {
-    lines.push(`【${analysis.source}】`);
-    lines.push(`communities 类型：${analysis.communitiesType}`);
-    lines.push(`公寓数量：${analysis.communitiesCount}`);
-    lines.push(`activeCommunityId：${analysis.activeCommunityId || "无"}`);
-
-    analysis.communities.forEach((community, index) => {
-      lines.push(`${index + 1}. ${community.name}`);
-      lines.push(`   ID：${community.id || "无"}`);
-      lines.push(`   Key：${community.key}`);
-      lines.push(`   楼栋：${community.buildingsCount}（${community.buildingsType}）`);
-      lines.push(`   号码：${community.numbersCount}`);
-    });
-    lines.push("");
-  });
-
-  lines.push("【两个主文档公寓对比】");
-  report.comparison.forEach((item, index) => {
-    lines.push(`${index + 1}. ${item.name}`);
-    item.sources.forEach((source) => {
-      lines.push(`   ${source.source}：${source.buildingsCount} 栋 / ${source.numbersCount} 号`);
-    });
-  });
-
-  return lines.join("\n");
-}
-
-async function analyzeCloudStructure() {
-  if (!analyzeCloudStructureBtn) return;
-
-  analyzeCloudStructureBtn.disabled = true;
-  if (exportAllCloudRawBtn) exportAllCloudRawBtn.disabled = true;
-  if (exportAllCloudAppBtn) exportAllCloudAppBtn.disabled = true;
-
-  try {
-    setCloudExportProgress("正在读取两个主文档并分析 communities、buildings、positions 的真实结构……", "working");
-    if (cloudStructureSummary) {
-      cloudStructureSummary.hidden = false;
-      cloudStructureSummary.textContent = "正在分析，请稍候……";
-    }
-
-    const db = await ensureCloudReady();
-    const targets = [
-      { collection: "communityMaps", document: "main" },
-      { collection: "xunbaohuo_free_cloud", document: "main_map_data" }
-    ];
-
-    const analyses = [];
-    const rawDocuments = [];
-
-    for (const target of targets) {
-      const snapshot = await db.collection(target.collection).doc(target.document).get();
-
-      if (!snapshot.exists) {
-        analyses.push({
-          source: `${target.collection}/${target.document}`,
-          exists: false,
-          communitiesType: "missing",
-          communitiesCount: 0,
-          activeCommunityId: "",
-          appDataFieldNames: [],
-          communities: []
-        });
-        continue;
-      }
-
-      const data = cloudExportPlainValue(snapshot.data());
-      rawDocuments.push({
-        collection: target.collection,
-        document: target.document,
-        data
-      });
-
-      analyses.push(cloudStructureAnalyzeCommunities(
-        data,
-        `${target.collection}/${target.document}`
-      ));
-    }
-
-    const comparison = cloudStructureBuildComparison(analyses);
-
-    const totals = analyses.map((analysis) => ({
-      source: analysis.source,
-      communities: analysis.communitiesCount,
-      buildings: analysis.communities.reduce((sum, item) => sum + item.buildingsCount, 0),
-      numbers: analysis.communities.reduce((sum, item) => sum + item.numbersCount, 0)
-    }));
-
-    const report = {
-      reportType: "firestore-cloud-structure-analysis",
-      generatedAt: new Date().toISOString(),
-      projectId: firebaseConfig.projectId,
-      targets,
-      totals,
-      analyses,
-      comparison,
-      rawDocuments
-    };
-
-    const textReport = cloudStructureBuildText(report);
-    if (cloudStructureSummary) cloudStructureSummary.textContent = textReport;
-
-    const date = new Date().toISOString().slice(0, 10);
-    cloudExportDownloadJson(report, `云端结构分析报告-${date}.json`);
-
-    setCloudExportProgress(
-      `结构分析完成并已下载报告。\n` +
-      totals.map((item) =>
-        `${item.source}：${item.communities} 个公寓、${item.buildings} 栋楼、${item.numbers} 个号码`
-      ).join("\n"),
-      "success"
-    );
-  } catch (error) {
-    console.error(error);
-    if (cloudStructureSummary) {
-      cloudStructureSummary.hidden = false;
-      cloudStructureSummary.textContent = `分析失败：${error?.message || error}`;
-    }
-    setCloudExportProgress(`分析失败：${error?.message || error}`, "error");
-  } finally {
-    analyzeCloudStructureBtn.disabled = false;
-    if (exportAllCloudRawBtn) exportAllCloudRawBtn.disabled = false;
-    if (exportAllCloudAppBtn) exportAllCloudAppBtn.disabled = false;
-  }
-}
-
-if (analyzeCloudStructureBtn) {
-  analyzeCloudStructureBtn.addEventListener("click", analyzeCloudStructure);
-}
-
-
-
-/* =========================================================
-   本机历史数据检查
-   仅检查当前网站域名在当前 Chrome 配置中可访问的：
-   - localStorage
-   - sessionStorage
-   - IndexedDB（浏览器支持 indexedDB.databases() 时）
-   只读取，不修改、不删除、不恢复。
-   ========================================================= */
-
-function setLocalHistoryStatus(message, tone = "") {
-  if (!localHistoryStatus) return;
-  localHistoryStatus.textContent = message;
-  localHistoryStatus.className = "local-history-status";
-  if (tone) localHistoryStatus.classList.add(`is-${tone}`);
-}
-
-function localHistorySafeClone(value) {
-  try {
-    return JSON.parse(JSON.stringify(value));
-  } catch (error) {
-    return String(value);
-  }
-}
-
-function localHistoryTryParse(value) {
-  if (value == null) return value;
-  if (typeof value !== "string") return value;
-  const trimmed = value.trim();
-  if (!trimmed) return "";
-  if (!/^[\[{]/.test(trimmed)) return value;
-  try {
-    return JSON.parse(trimmed);
-  } catch (error) {
-    return value;
-  }
-}
-
-function localHistoryDescribeMapData(value, path = "root", depth = 0, seen = new WeakSet()) {
-  const matches = [];
-  if (depth > 10 || value == null) return matches;
-
-  if (typeof value === "object") {
-    try {
-      if (seen.has(value)) return matches;
-      seen.add(value);
-    } catch (error) {
-      // 部分特殊对象不能加入 WeakSet，继续以普通方式检查。
-    }
-  }
-
-  const normalized = localHistoryTryParse(value);
-
-  if (Array.isArray(normalized)) {
-    const possiblePositions = normalized.filter((item) =>
-      item && typeof item === "object" &&
-      (
-        item.position != null || item.number != null || item.unit != null ||
-        (item.lat != null && (item.lng != null || item.longitude != null))
-      )
-    );
-
-    if (possiblePositions.length) {
-      matches.push({
-        path,
-        kind: "possible-position-array",
-        communities: 0,
-        buildings: 0,
-        numbers: possiblePositions.length
-      });
-    }
-
-    normalized.forEach((item, index) => {
-      matches.push(...localHistoryDescribeMapData(item, `${path}[${index}]`, depth + 1, seen));
-    });
-    return matches;
-  }
-
-  if (!normalized || typeof normalized !== "object") return matches;
-
-  const communitiesValue = normalized.communities;
-  if (communitiesValue && typeof communitiesValue === "object") {
-    const communities = cloudExportAsArray(communitiesValue);
-    let buildingCount = 0;
-    let numberCount = 0;
-
-    communities.forEach((community) => {
-      const buildings = cloudExportAsArray(
-        community?.buildings ?? community?.groups ?? community?.blocks
-      );
-      buildingCount += buildings.length;
-      buildings.forEach((building) => {
-        numberCount += cloudExportAsArray(
-          building?.positions ?? building?.numbers ?? building?.units ??
-          building?.markers ?? building?.apartments
-        ).length;
-      });
-    });
-
-    matches.push({
-      path: `${path}.communities`,
-      kind: "communities",
-      communities: communities.length,
-      buildings: buildingCount,
-      numbers: numberCount
-    });
-  }
-
-  const buildingsValue = normalized.buildings ?? normalized.groups ?? normalized.blocks;
-  if (buildingsValue && typeof buildingsValue === "object") {
-    const buildings = cloudExportAsArray(buildingsValue);
-    let numberCount = 0;
-    buildings.forEach((building) => {
-      numberCount += cloudExportAsArray(
-        building?.positions ?? building?.numbers ?? building?.units ??
-        building?.markers ?? building?.apartments
-      ).length;
-    });
-
-    matches.push({
-      path: `${path}.buildings`,
-      kind: "buildings",
-      communities: 1,
-      buildings: buildings.length,
-      numbers: numberCount
-    });
-  }
-
-  Object.entries(normalized).forEach(([key, item]) => {
-    if (["communities", "buildings", "groups", "blocks"].includes(key)) return;
-    if (item && (typeof item === "object" || typeof item === "string")) {
-      matches.push(...localHistoryDescribeMapData(item, `${path}.${key}`, depth + 1, seen));
-    }
-  });
-
-  return matches;
-}
-
-function localHistoryBestMatch(matches) {
-  if (!Array.isArray(matches) || !matches.length) return null;
-  return [...matches].sort((a, b) => {
-    if (b.communities !== a.communities) return b.communities - a.communities;
-    if (b.numbers !== a.numbers) return b.numbers - a.numbers;
-    return b.buildings - a.buildings;
-  })[0];
-}
-
-function localHistoryScanWebStorage(storage, storageName) {
-  const records = [];
-
-  try {
-    for (let index = 0; index < storage.length; index += 1) {
-      const key = storage.key(index);
-      const rawValue = storage.getItem(key);
-      const parsedValue = localHistoryTryParse(rawValue);
-      const matches = localHistoryDescribeMapData(parsedValue);
-      const best = localHistoryBestMatch(matches);
-
-      records.push({
-        sourceType: storageName,
-        sourceName: key || `(无名称-${index + 1})`,
-        rawTextLength: typeof rawValue === "string" ? rawValue.length : 0,
-        parsedType: Array.isArray(parsedValue) ? "array" : typeof parsedValue,
-        mapMatches: matches,
-        bestMatch: best,
-        value: localHistorySafeClone(parsedValue)
-      });
-    }
-  } catch (error) {
-    records.push({
-      sourceType: storageName,
-      sourceName: "*",
-      error: error?.message || String(error),
-      mapMatches: [],
-      bestMatch: null
-    });
-  }
-
-  return records;
-}
-
-function localHistoryRequestToPromise(request) {
-  return new Promise((resolve, reject) => {
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error || new Error("IndexedDB 请求失败"));
-  });
-}
-
-function localHistoryOpenDatabase(name, version) {
-  return new Promise((resolve, reject) => {
-    let request;
-    try {
-      request = version ? indexedDB.open(name, version) : indexedDB.open(name);
-    } catch (error) {
-      reject(error);
-      return;
-    }
-
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error || new Error(`无法打开 IndexedDB：${name}`));
-    request.onupgradeneeded = (event) => {
-      // 如果数据库不存在，浏览器可能尝试创建；立即中止升级，避免写入新数据库。
-      try {
-        event.target.transaction.abort();
-      } catch (error) {}
-    };
-  });
-}
-
-async function localHistoryReadObjectStore(db, storeName) {
-  return new Promise((resolve) => {
-    const rows = [];
-
-    try {
-      const transaction = db.transaction(storeName, "readonly");
-      const store = transaction.objectStore(storeName);
-      const request = store.openCursor();
-
-      request.onsuccess = (event) => {
-        const cursor = event.target.result;
-        if (!cursor) return;
-
-        const value = cursor.value;
-        const matches = localHistoryDescribeMapData(value);
-        const best = localHistoryBestMatch(matches);
-
-        rows.push({
-          key: localHistorySafeClone(cursor.key),
-          primaryKey: localHistorySafeClone(cursor.primaryKey),
-          mapMatches: matches,
-          bestMatch: best,
-          value: localHistorySafeClone(value)
-        });
-
-        cursor.continue();
-      };
-
-      request.onerror = () => {
-        rows.push({
-          error: request.error?.message || "读取对象仓库失败",
-          mapMatches: [],
-          bestMatch: null
-        });
-      };
-
-      transaction.oncomplete = () => resolve(rows);
-      transaction.onerror = () => resolve(rows.concat([{
-        error: transaction.error?.message || "IndexedDB 事务失败",
-        mapMatches: [],
-        bestMatch: null
-      }]));
-      transaction.onabort = () => resolve(rows);
-    } catch (error) {
-      resolve([{
-        error: error?.message || String(error),
-        mapMatches: [],
-        bestMatch: null
-      }]);
-    }
-  });
-}
-
-async function localHistoryScanIndexedDB() {
-  const databases = [];
-  const records = [];
-
-  if (!window.indexedDB) {
-    return {
-      supported: false,
-      note: "当前浏览器不支持 IndexedDB",
-      databases,
-      records
-    };
-  }
-
-  if (typeof indexedDB.databases !== "function") {
-    return {
-      supported: false,
-      note: "当前 Chrome 不允许网页自动列出 IndexedDB 数据库名称；localStorage 仍已检查。",
-      databases,
-      records
-    };
-  }
-
-  let dbList;
-  try {
-    dbList = await indexedDB.databases();
-  } catch (error) {
-    return {
-      supported: false,
-      note: `无法列出 IndexedDB：${error?.message || error}`,
-      databases,
-      records
-    };
-  }
-
-  for (const dbInfo of dbList) {
-    if (!dbInfo?.name) continue;
-
-    const dbRecord = {
-      name: dbInfo.name,
-      version: dbInfo.version || null,
-      objectStores: []
-    };
-    databases.push(dbRecord);
-
-    let db;
-    try {
-      db = await localHistoryOpenDatabase(dbInfo.name, dbInfo.version);
-      const storeNames = Array.from(db.objectStoreNames);
-      dbRecord.objectStores = storeNames;
-
-      for (const storeName of storeNames) {
-        const rows = await localHistoryReadObjectStore(db, storeName);
-
-        rows.forEach((row, index) => {
-          records.push({
-            sourceType: "IndexedDB",
-            sourceName: `${dbInfo.name}/${storeName}`,
-            recordIndex: index,
-            key: row.key,
-            primaryKey: row.primaryKey,
-            mapMatches: row.mapMatches || [],
-            bestMatch: row.bestMatch || null,
-            error: row.error || "",
-            value: row.value
-          });
-        });
-      }
-    } catch (error) {
-      records.push({
-        sourceType: "IndexedDB",
-        sourceName: dbInfo.name,
-        error: error?.message || String(error),
-        mapMatches: [],
-        bestMatch: null
-      });
-    } finally {
-      try {
-        db?.close();
-      } catch (error) {}
-    }
-  }
-
-  return {
-    supported: true,
-    note: "",
-    databases,
-    records
-  };
-}
-
-function localHistoryRenderReport(report) {
-  if (!localHistoryResults) return;
-
-  const candidates = report.candidates || [];
-  localHistoryResults.hidden = false;
-
-  if (!candidates.length) {
-    localHistoryResults.innerHTML = `
-      <div class="local-history-item">
-        <strong>没有找到明显的地图历史数据</strong>
-        <span>这不代表电脑里一定没有数据；旧数据可能属于另一个网站地址、另一个 Chrome 用户配置，或浏览器不允许自动列出 IndexedDB。</span>
-      </div>
-    `;
-    return;
-  }
-
-  localHistoryResults.innerHTML = candidates.map((item, index) => {
-    const best = item.bestMatch || {};
-    const source = `${item.sourceType}：${item.sourceName}`;
-    const keyText = item.key != null ? `；记录键：${JSON.stringify(item.key)}` : "";
-    const pathText = best.path ? `；识别路径：${best.path}` : "";
-
-    return `
-      <div class="local-history-item">
-        <strong>${index + 1}. ${escapeHtml(source)}</strong>
-        <span class="local-history-counts">
-          ${Number(best.communities || 0)} 个公寓 /
-          ${Number(best.buildings || 0)} 栋楼 /
-          ${Number(best.numbers || 0)} 个号码
-        </span>
-        <span>${escapeHtml(`${keyText}${pathText}`)}</span>
-      </div>
-    `;
-  }).join("");
-}
-
-async function scanLocalHistoryData() {
-  if (!scanLocalHistoryBtn) return;
-
-  scanLocalHistoryBtn.disabled = true;
-  if (downloadLocalHistoryBtn) downloadLocalHistoryBtn.disabled = true;
-
-  try {
-    setLocalHistoryStatus(
-      "正在检查当前网站在这台电脑 Chrome 中的 localStorage、sessionStorage 和 IndexedDB……\n只读取，不会修改任何数据。",
-      "working"
-    );
-
-    const localStorageRecords = localHistoryScanWebStorage(window.localStorage, "localStorage");
-    const sessionStorageRecords = localHistoryScanWebStorage(window.sessionStorage, "sessionStorage");
-    const indexedDBResult = await localHistoryScanIndexedDB();
-
-    const allRecords = [
-      ...localStorageRecords,
-      ...sessionStorageRecords,
-      ...indexedDBResult.records
-    ];
-
-    const candidates = allRecords
-      .filter((record) => record.bestMatch && (
-        record.bestMatch.communities > 0 ||
-        record.bestMatch.buildings > 0 ||
-        record.bestMatch.numbers > 0
-      ))
-      .sort((a, b) => {
-        const ac = a.bestMatch?.communities || 0;
-        const bc = b.bestMatch?.communities || 0;
-        if (bc !== ac) return bc - ac;
-        return (b.bestMatch?.numbers || 0) - (a.bestMatch?.numbers || 0);
-      });
-
-    localHistoryLastReport = {
-      reportType: "browser-local-history-scan",
-      generatedAt: new Date().toISOString(),
-      pageOrigin: window.location.origin,
-      pageUrl: window.location.href,
-      userAgent: navigator.userAgent,
-      limitations: [
-        "只能检查当前网站域名在当前 Chrome 用户配置中的数据。",
-        "无法读取其他 GitHub Pages 地址、Replit 地址、file:// 地址或其他 Chrome 用户配置的数据。",
-        "不会修改、删除或自动恢复任何数据。"
-      ],
-      storageSummary: {
-        localStorageKeys: localStorageRecords.length,
-        sessionStorageKeys: sessionStorageRecords.length,
-        indexedDBSupported: indexedDBResult.supported,
-        indexedDBNote: indexedDBResult.note,
-        indexedDBDatabases: indexedDBResult.databases
-      },
-      candidates,
-      allRecords
-    };
-
-    localHistoryRenderReport(localHistoryLastReport);
-    if (downloadLocalHistoryBtn) downloadLocalHistoryBtn.disabled = false;
-
-    const best = candidates[0]?.bestMatch;
-    let message = `检查完成：共发现 ${candidates.length} 份疑似地图数据。`;
-    if (best) {
-      message += `\n最大的一份约有 ${best.communities || 0} 个公寓、${best.buildings || 0} 栋楼、${best.numbers || 0} 个号码。`;
-    }
-    if (!indexedDBResult.supported && indexedDBResult.note) {
-      message += `\nIndexedDB 提示：${indexedDBResult.note}`;
-    }
-    message += "\n请点击“下载本机历史扫描报告”，再把 JSON 文件发给我检查。";
-
-    setLocalHistoryStatus(message, candidates.length ? "success" : "warning");
-  } catch (error) {
-    console.error(error);
-    setLocalHistoryStatus(`检查失败：${error?.message || error}`, "error");
-  } finally {
-    scanLocalHistoryBtn.disabled = false;
-  }
-}
-
-function downloadLocalHistoryReport() {
-  if (!localHistoryLastReport) {
-    setLocalHistoryStatus("请先点击“检查本机历史数据”。", "warning");
-    return;
-  }
-
-  const date = new Date().toISOString().slice(0, 10);
-  cloudExportDownloadJson(
-    localHistoryLastReport,
-    `本机历史数据扫描报告-${date}.json`
-  );
-
-  setLocalHistoryStatus(
-    "本机历史扫描报告已下载。请把该 JSON 文件上传给我，我会检查是否有超过目前 8 个公寓的旧数据。",
-    "success"
-  );
-}
-
-if (scanLocalHistoryBtn) {
-  scanLocalHistoryBtn.addEventListener("click", scanLocalHistoryData);
-}
-
-if (downloadLocalHistoryBtn) {
-  downloadLocalHistoryBtn.addEventListener("click", downloadLocalHistoryReport);
-}
-
-
-if (exportAllCloudRawBtn) {
-  exportAllCloudRawBtn.addEventListener("click", exportAllCloudRawData);
-}
-if (exportAllCloudAppBtn) {
-  exportAllCloudAppBtn.addEventListener("click", exportAllCloudAsAppJson);
-}
-
 
 document.getElementById("settingsBtn").addEventListener("click", function () {
   settingsPanel.classList.toggle("is-open");
@@ -7012,23 +5221,7 @@ if (addBuildingPhotoBtn) addBuildingPhotoBtn.addEventListener("click", () => {
   else requestBuildingPhotoFile(building.id);
 });
 if (buildingPhotoInput) buildingPhotoInput.addEventListener("change", handleBuildingPhotoFileSelected);
-if (openPhotoStorageStatsBtn) openPhotoStorageStatsBtn.addEventListener("click", openPhotoStorageStatsPanel);
-if (closePhotoStorageStatsPanelBtn) closePhotoStorageStatsPanelBtn.addEventListener("click", closePhotoStorageStatsPanel);
 if (closeBuildingPhotoViewerBtn) closeBuildingPhotoViewerBtn.addEventListener("click", closeBuildingPhotoViewer);
-if (buildingPhotoViewerImage) buildingPhotoViewerImage.addEventListener("click", function (event) {
-  if (Date.now() < buildingPhotoViewerSuppressClickUntil) return;
-  event.preventDefault();
-  event.stopPropagation();
-  toggleBuildingPhotoViewerPhotoOnly();
-});
-if (buildingPhotoViewerBody) {
-  buildingPhotoViewerBody.addEventListener("touchstart", handleBuildingPhotoViewerTouchStart, { passive: false });
-  buildingPhotoViewerBody.addEventListener("touchmove", handleBuildingPhotoViewerTouchMove, { passive: false });
-  buildingPhotoViewerBody.addEventListener("touchend", handleBuildingPhotoViewerTouchEnd, { passive: false });
-  buildingPhotoViewerBody.addEventListener("touchcancel", function () {
-    buildingPhotoViewerTouchMode = "";
-  }, { passive: true });
-}
 if (replaceBuildingPhotoBtn) replaceBuildingPhotoBtn.addEventListener("click", replaceCurrentBuildingPhoto);
 if (deleteBuildingPhotoBtn) deleteBuildingPhotoBtn.addEventListener("click", deleteCurrentBuildingPhoto);
 if (closeCommunitySearchPanelBtn) closeCommunitySearchPanelBtn.addEventListener("click", closeCommunitySearchPanel);
@@ -7308,159 +5501,3 @@ updateHeadingText();
 updateZoomDisplay();
 setMapBearing(0);
 applyMobileModeUi();
-
-
-/* ==========================================================================\n   APP V2 固定底层：阶段备份、万用表格结构、APP 内蓝线路线\n   说明：旧版稳定定位/跟随/照片/密码/送货逻辑保持不动，本层只追加 V2 能力。\n   ========================================================================== */
-const APP_V2_VERSION = "2.0.0";
-const APP_V2_DATA_VERSION = 4;
-const V2_STAGE_THRESHOLD = 400;
-let v2RouteLayer = null;
-let v2RouteStopMarkers = [];
-let v2BackupPromptOpen = false;
-
-function ensureV2CommunityState(community) {
-  if (!community) return null;
-  community.v2 = community.v2 || {};
-  community.v2.dataVersion = APP_V2_DATA_VERSION;
-  community.v2.unbackedSmallNumberChanges = Number(community.v2.unbackedSmallNumberChanges || 0);
-  community.v2.stageReminderDismissed = Boolean(community.v2.stageReminderDismissed);
-  community.v2.lastStageBackupAt = community.v2.lastStageBackupAt || null;
-  community.v2.routeStructureVersion = 1;
-  (community.buildings || []).forEach((building) => {
-    building.routeGroupId = building.routeGroupId || building.id;
-    (building.positions || []).forEach((position) => {
-      const u = position.universal || {};
-      position.v2Structure = position.v2Structure || {
-        buildingPart: String(u.building || ""),
-        floorPart: String(u.floor || ""),
-        unitPart: String(u.unit || position.position || ""),
-        parentMarkerId: building.id,
-        routeGroupId: building.routeGroupId,
-        hasExplicitFloor: Boolean(String(u.floor || "").trim()),
-        sameSuffixGroup: String(u.floor || "").trim() ? String(u.unit || position.position || "") : ""
-      };
-    });
-  });
-  return community.v2;
-}
-
-function migrateAllDataToV2() {
-  appData.version = Math.max(Number(appData.version || 0), APP_V2_DATA_VERSION);
-  appData.appVersion = APP_V2_VERSION;
-  (appData.communities || []).forEach(ensureV2CommunityState);
-}
-
-function buildV2StageBackupPayload(community) {
-  return {
-    backupType: "V2_STAGE_BACKUP",
-    appVersion: APP_V2_VERSION,
-    dataVersion: APP_V2_DATA_VERSION,
-    backupAt: new Date().toISOString(),
-    communityId: community.id,
-    communityName: community.name,
-    counts: {
-      buildings: (community.buildings || []).length,
-      numbers: (community.buildings || []).reduce((n,b)=>n+(b.positions || []).length,0),
-      photos: (community.buildings || []).filter(b=>b.photo || b.photoData || b.photoUrl).length
-    },
-    community: JSON.parse(JSON.stringify(community))
-  };
-}
-
-function downloadV2StageBackup(community) {
-  const payload = buildV2StageBackupPayload(community);
-  const blob = new Blob([JSON.stringify(payload, null, 2)], {type:"application/json"});
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  const safe = String(community.name || "公寓").replace(/[\\/:*?"<>|]/g,"_");
-  const stamp = new Date().toISOString().replace(/[:T]/g,"-").slice(0,16);
-  a.download = `${safe}_V2阶段备份_${stamp}.json`;
-  a.click();
-  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
-  const state = ensureV2CommunityState(community);
-  state.unbackedSmallNumberChanges = 0;
-  state.stageReminderDismissed = false;
-  state.lastStageBackupAt = payload.backupAt;
-  saveData();
-}
-
-function showV2BackupPrompt(community) {
-  if (v2BackupPromptOpen || !community) return;
-  v2BackupPromptOpen = true;
-  const box = document.createElement("section");
-  box.className = "v2-stage-backup-dialog";
-  box.innerHTML = `<div><h3>建议进行阶段备份</h3><p>“${escapeHtml(community.name)}”本轮累计修改已达到 ${ensureV2CommunityState(community).unbackedSmallNumberChanges} 个小号码。阶段备份会保存当前公寓群的完整数据，不是只保存改动部分。</p><footer><button data-act="continue">继续编辑</button><button class="primary" data-act="backup">阶段备份</button></footer></div>`;
-  box.addEventListener("click",(e)=>{
-    const act=e.target?.dataset?.act;
-    if(!act) return;
-    if(act==="backup") downloadV2StageBackup(community);
-    else ensureV2CommunityState(community).stageReminderDismissed=true;
-    box.remove(); v2BackupPromptOpen=false; saveData();
-  });
-  document.body.appendChild(box);
-}
-
-function recordV2SmallNumberChanges(count=1) {
-  const community=getActiveCommunity(); if(!community) return;
-  const state=ensureV2CommunityState(community);
-  state.unbackedSmallNumberChanges += Math.max(0,Number(count)||0);
-  if(state.unbackedSmallNumberChanges>=V2_STAGE_THRESHOLD && !state.stageReminderDismissed) showV2BackupPrompt(community);
-}
-
-function clearV2Route() {
-  if(v2RouteLayer){ map.removeLayer(v2RouteLayer); v2RouteLayer=null; }
-  v2RouteStopMarkers.forEach(m=>map.removeLayer(m)); v2RouteStopMarkers=[];
-  const p=document.getElementById("v2RouteStatusPanel"); if(p) p.hidden=true;
-}
-
-function getV2RouteStops() {
-  const community=getCommunityById(communitySearchCommunityId || appData.activeCommunityId);
-  const pending=typeof getDeliveryPendingTargets==="function" ? getDeliveryPendingTargets() : [];
-  const groups=new Map();
-  pending.forEach(target=>{
-    const rec=getTargetPositionRecord(target,community);
-    if(!rec.position || !rec.building) return;
-    ensureV2CommunityState(community);
-    const structure=rec.position.v2Structure || {};
-    const independent=!String(structure.buildingPart||"").trim() && !String(structure.hasExplicitFloor||"").trim() && normalizeCommunityType(community?.type)==="universal";
-    const key=independent ? `position:${rec.position.id}` : `group:${structure.routeGroupId || rec.building.id}`;
-    if(!groups.has(key)) groups.set(key,{key,label:independent?getDeliveryTargetLabel(target):getBuildingDisplayName(rec.building,community),lat:independent?Number(rec.position.lat):Number(rec.building.lat),lng:independent?Number(rec.position.lng):Number(rec.building.lng),targets:[]});
-    groups.get(key).targets.push(target);
-  });
-  return Array.from(groups.values()).filter(s=>Number.isFinite(s.lat)&&Number.isFinite(s.lng));
-}
-
-function nearestNeighborOrder(start, stops) {
-  const left=stops.slice(), ordered=[]; let cur=start;
-  while(left.length){ let best=0,bestD=Infinity; left.forEach((s,i)=>{const d=(s.lat-cur.lat)**2+(s.lng-cur.lng)**2;if(d<bestD){bestD=d;best=i}}); const next=left.splice(best,1)[0]; ordered.push(next); cur=next; }
-  return ordered;
-}
-
-async function planV2Route() {
-  const stops=getV2RouteStops();
-  if(!stops.length){ alert("请先输入并显示本次要送的公寓号码。"); return; }
-  const start=myLatLng ? {lat:Number(myLatLng.lat),lng:Number(myLatLng.lng)} : {lat:map.getCenter().lat,lng:map.getCenter().lng};
-  // API Key 留空时，使用本机最近邻顺序并在 APP 内画预览蓝线；填入 Key 后仍从此入口升级为 Google Routes API。
-  const ordered=nearestNeighborOrder(start,stops);
-  clearV2Route();
-  const points=[[start.lat,start.lng],...ordered.map(s=>[s.lat,s.lng])];
-  v2RouteLayer=L.polyline(points,{color:"#1677ff",weight:6,opacity:.9,lineJoin:"round"}).addTo(map);
-  ordered.forEach((s,i)=>{ const m=L.marker([s.lat,s.lng],{icon:L.divIcon({className:"v2-route-stop-icon",html:`<b>${i+1}</b>`,iconSize:[28,28],iconAnchor:[14,14]})}).bindTooltip(`${i+1}. ${s.label}（${s.targets.length}个号码）`); m.addTo(map); v2RouteStopMarkers.push(m); });
-  map.fitBounds(v2RouteLayer.getBounds(),{padding:[55,55]});
-  const panel=document.getElementById("v2RouteStatusPanel"), text=document.getElementById("v2RouteStatusText");
-  if(panel) panel.hidden=false;
-  const hasKey=Boolean(window.APP_V2_CONFIG?.googleRoutesEnabled && window.APP_V2_CONFIG?.googleRoutesApiKey);
-  if(text) text.textContent=`${ordered.length} 个停靠点；${hasKey?"Google Routes 接口已配置（当前为安全预览层）":"尚未填写 API，当前显示本机预览蓝线"}`;
-}
-
-// 让新生成/导入的数据都补齐 V2 结构，同时不改变旧版保存流程。
-const _v2OriginalSaveData = saveData;
-saveData = function(options={}) { migrateAllDataToV2(); return _v2OriginalSaveData(options); };
-
-window.addEventListener("DOMContentLoaded",()=>{
-  migrateAllDataToV2();
-  const plan=document.getElementById("planV2RouteBtn"); if(plan) plan.addEventListener("click",planV2Route);
-  const clear=document.getElementById("clearV2RouteBtn"); if(clear) clear.addEventListener("click",clearV2Route);
-  const style=document.createElement("style"); style.textContent='.v2-route-stop-icon{background:#fff;border:3px solid #1677ff;border-radius:50%;color:#0b4fb3;text-align:center;line-height:22px;box-shadow:0 2px 8px rgba(0,0,0,.3)}'; document.head.appendChild(style);
-  saveData({skipCloudSync:true});
-});
