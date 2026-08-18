@@ -123,6 +123,7 @@ const ROUTES_API_ENDPOINT = "https://routes.googleapis.com/directions/v2:compute
 const DELIVERY_ROUTE_MAX_OPTIMIZED_STOPS = 25;
 const DELIVERY_ROUTE_CHUNK_POINT_LIMIT = 27; // origin + 25 intermediates + destination
 let deliveryPlannedRouteLayer = null;
+let deliveryWalkConnectorLayers = new Map();
 let deliveryPlannedRouteStartLatLng = null;
 let deliveryPlannedRouteOrderedKeys = [];
 let deliveryPlannedRouteSignature = "";
@@ -288,11 +289,23 @@ function ensureRoutesApiKey() {
   return key;
 }
 
+function isDeliveryRouteLocked() {
+  return deliveryRoutePlanning || deliveryPlannedRouteOrderedKeys.length > 0;
+}
+
+function blockRouteInterrupt(actionName = "进行其他操作") {
+  if (!isDeliveryRouteLocked()) return false;
+  alert(`本次送货路线正在使用中，不能${actionName}。\n\n请先点击“结束送货”，确认结束后才能退出本次路线。`);
+  updateLocationStatus("送货路线已锁定；只有“结束送货”可以退出", "info");
+  return true;
+}
+
 function clearDeliveryPlannedRoute(options = {}) {
   if (deliveryPlannedRouteLayer && map && map.hasLayer(deliveryPlannedRouteLayer)) {
     map.removeLayer(deliveryPlannedRouteLayer);
   }
   deliveryPlannedRouteLayer = null;
+  deliveryWalkConnectorLayers = new Map();
   deliveryPlannedRouteOrderedKeys = [];
   deliveryPlannedRouteSignature = "";
   deliveryRouteLastDistanceMeters = 0;
@@ -536,6 +549,7 @@ function findNearestPointOnRoute(targetLatLng, routeGroups) {
 
 function renderDeliveryPlannedRoute(encodedPolylines, orderedTargets = []) {
   if (deliveryPlannedRouteLayer && map && map.hasLayer(deliveryPlannedRouteLayer)) map.removeLayer(deliveryPlannedRouteLayer);
+  deliveryWalkConnectorLayers = new Map();
   const groups = (Array.isArray(encodedPolylines) ? encodedPolylines : []).map(decodeGooglePolyline).filter((points) => points.length > 1);
   if (!groups.length) {
     deliveryPlannedRouteLayer = null;
@@ -561,7 +575,7 @@ function renderDeliveryPlannedRoute(encodedPolylines, orderedTargets = []) {
     // 几乎与驾驶线完全重合时没有可见接驳段，避免生成零长度折线。
     if (nearest.distanceMeters < 0.5) return;
 
-    layers.push(L.polyline([
+    const connectorLayer = L.polyline([
       [nearest.lat, nearest.lng],
       [Number(targetLatLng.lat), Number(targetLatLng.lng)]
     ], {
@@ -573,10 +587,25 @@ function renderDeliveryPlannedRoute(encodedPolylines, orderedTargets = []) {
       lineJoin: "round",
       interactive: false,
       className: "delivery-walk-connector"
-    }));
+    });
+    const targetKey = getDeliveryTargetKey(target);
+    if (targetKey) deliveryWalkConnectorLayers.set(targetKey, connectorLayer);
+    if (!deliveryDeliveredKeys.has(targetKey) && !deliveryCancelledKeys.has(targetKey)) {
+      layers.push(connectorLayer);
+    }
   });
 
   deliveryPlannedRouteLayer = L.layerGroup(layers).addTo(map);
+}
+
+function syncDeliveryWalkConnectorLayers() {
+  if (!deliveryPlannedRouteLayer || !deliveryWalkConnectorLayers.size) return;
+  deliveryWalkConnectorLayers.forEach((layer, key) => {
+    const shouldShow = !deliveryDeliveredKeys.has(key) && !deliveryCancelledKeys.has(key);
+    const isShown = deliveryPlannedRouteLayer.hasLayer(layer);
+    if (shouldShow && !isShown) deliveryPlannedRouteLayer.addLayer(layer);
+    if (!shouldShow && isShown) deliveryPlannedRouteLayer.removeLayer(layer);
+  });
 }
 
 function makeRoutePointFromTarget(target) {
@@ -1512,6 +1541,7 @@ function updateCommunityOptionsForInput() {
 function jumpToCommunityCard(communityId, zoom = 18) {
   const community = getCommunityById(communityId);
   if (!community) return;
+  if (blockRouteInterrupt("跳转到其他公寓群")) return;
 
   // 手动选择公寓地址时，只暂停“正在跟随”的状态，不改定位/跟随模式的核心逻辑。
   // 否则定位监听下一次刷新会把地图从选中的公寓名牌重新拉回当前位置。
@@ -1609,6 +1639,7 @@ function renameActiveCommunity() {
 
 function switchActiveCommunity(id) {
   if (!id || id === appData.activeCommunityId) return;
+  if (blockRouteInterrupt("切换公寓群")) return;
 
   appData.activeCommunityId = id;
   selectedBuildingId = null;
@@ -1751,19 +1782,19 @@ function renderMap() {
 }
 
 function showCommunityCardsMode() {
-  clearDeliveryPlannedRoute();
+  if (blockRouteInterrupt("切换到公寓群牌面")) return;
   displayMode = "communities";
   selectedBuildingId = null;
   selectedPositions.clear();
-  communitySearchTargets = [];
-  deliveryDeliveredKeys = new Set();
-  deliveryCancelledKeys = new Set();
-  deliveryPendingPanelOpen = false;
-  deliveryDeliveredPanelOpen = false;
   closeBuildingPanel();
   closeCommunitySearchPanel();
   renderMap();
-  updateLocationStatus("已收起楼栋，只显示公寓群牌面", "info");
+  updateLocationStatus(
+    deliveryPlannedRouteOrderedKeys.length
+      ? "已收起楼栋；本次规划路线已保留"
+      : "已收起楼栋，只显示公寓群牌面",
+    "info"
+  );
 }
 
 
@@ -1774,6 +1805,8 @@ function getCommunityById(id) {
 function openCommunitySearchPanel(communityId) {
   const community = getCommunityById(communityId);
   if (!community) return;
+
+  if (blockRouteInterrupt("打开或切换公寓群")) return;
 
   appData.activeCommunityId = community.id;
   communitySearchCommunityId = community.id;
@@ -2020,6 +2053,7 @@ function undoLastDeliveryHide() {
   deliveryLastHiddenType = "";
   hideDeliveryToast();
   renderMap();
+  syncDeliveryWalkConnectorLayers();
   updateLocationStatus(`已恢复 ${label} 号到本次号码`, "success");
 }
 
@@ -2030,6 +2064,7 @@ function markDeliveryTargetDelivered(target) {
   deliveryCancelledKeys.delete(key);
   deliveryDeliveredKeys.add(key);
   renderMap();
+  syncDeliveryWalkConnectorLayers();
   showDeliveryToast(target, "delivered");
   updateLocationStatus(`已送达 ${getDeliveryTargetLabel(target)} 号，已从地图隐藏`, "success");
 }
@@ -2041,6 +2076,7 @@ function cancelDeliveryTarget(target) {
   deliveryDeliveredKeys.delete(key);
   deliveryCancelledKeys.add(key);
   renderMap();
+  syncDeliveryWalkConnectorLayers();
   showDeliveryToast(target, "cancelled");
   updateLocationStatus(`已取消 ${getDeliveryTargetLabel(target)} 号，已从本次地图隐藏`, "warning");
 }
@@ -2051,6 +2087,7 @@ function restoreDeliveryTarget(target) {
   deliveryDeliveredKeys.delete(key);
   deliveryCancelledKeys.delete(key);
   renderMap();
+  syncDeliveryWalkConnectorLayers();
   updateLocationStatus(`已恢复 ${getDeliveryTargetLabel(target)} 号到地图`, "success");
 }
 
@@ -2372,6 +2409,7 @@ function insertCommunitySearchText(text) {
 }
 
 function showCommunityNumberSearchResults() {
+  if (blockRouteInterrupt("重新搜索号码")) return;
   clearDeliveryPlannedRoute();
   const community = getCommunityById(communitySearchCommunityId || appData.activeCommunityId);
   if (!community) return;
@@ -2400,6 +2438,7 @@ function showCommunityNumberSearchResults() {
 }
 
 function showAllNumbersForCommunity() {
+  if (blockRouteInterrupt("重新载入全部号码")) return;
   clearDeliveryPlannedRoute();
   const community = getCommunityById(communitySearchCommunityId || appData.activeCommunityId);
   if (!community) return;
@@ -2427,6 +2466,7 @@ function showAllNumbersForCommunity() {
 }
 
 function showCommunityBuildingsOnly() {
+  if (blockRouteInterrupt("退出本次路线")) return;
   clearDeliveryPlannedRoute();
   const community = getCommunityById(communitySearchCommunityId || appData.activeCommunityId);
   if (!community) return;
@@ -3086,6 +3126,7 @@ function openCommunityBuildings(communityId) {
   if (!communityId) return;
   const community = getCommunityById(communityId);
   if (!community) return;
+  if (blockRouteInterrupt("打开或切换公寓群")) return;
 
   appData.activeCommunityId = community.id;
   communitySearchCommunityId = community.id;
