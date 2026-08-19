@@ -3558,3 +3558,88 @@ body.mobile-edit-mode .mobile-mode-panel .mobile-mode-primary {
 .delivery-walk-connector {
   pointer-events: none;
 }
+
+/* Firebase Authentication：首次登录，之后由 Firebase 保持本机登录状态。 */
+.firebase-auth-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(17, 24, 39, 0.72);
+}
+
+.firebase-auth-overlay[hidden] {
+  display: none !important;
+}
+
+.firebase-auth-card {
+  width: min(390px, calc(100vw - 32px));
+  padding: 20px;
+  border-radius: 18px;
+  background: #fff;
+  color: #111827;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.34);
+}
+
+.firebase-auth-card strong {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 20px;
+}
+
+.firebase-auth-card p {
+  margin: 0 0 14px;
+  color: #4b5563;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.firebase-auth-card label {
+  display: block;
+  margin: 10px 0 5px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.firebase-auth-card input {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 12px;
+  background: #fff;
+  color: #111827;
+}
+
+.firebase-auth-card button {
+  width: 100%;
+  min-height: 44px;
+  margin-top: 12px;
+  border: 0;
+  border-radius: 12px;
+  background: #111827;
+  color: #fff;
+  font-weight: 900;
+}
+
+.firebase-auth-card .firebase-auth-secondary {
+  margin-top: 8px;
+  background: #e5e7eb;
+  color: #111827;
+}
+
+.firebase-auth-message {
+  min-height: 20px;
+  margin-top: 10px;
+  color: #b91c1c;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.firebase-auth-message.success {
+  color: #166534;
+}

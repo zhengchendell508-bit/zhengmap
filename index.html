@@ -315,6 +315,21 @@
       <p class="mobile-mode-note">送包裹模式下不能拖动名牌、楼栋和号码；进入编辑模式后才允许新增、修改、拖动和删除。</p>
     </section>
 
+
+    <section id="firebaseAuthOverlay" class="firebase-auth-overlay" aria-label="Firebase 登录" hidden>
+      <div class="firebase-auth-card">
+        <strong>地图云端登录</strong>
+        <p>第一次在这个设备使用时，请输入 Firebase Authentication 的邮箱和密码。登录成功后会保持登录状态。</p>
+        <label for="firebaseAuthEmail">邮箱</label>
+        <input id="firebaseAuthEmail" type="email" autocomplete="username" placeholder="你的 Firebase 登录邮箱">
+        <label for="firebaseAuthPassword">密码</label>
+        <input id="firebaseAuthPassword" type="password" autocomplete="current-password" placeholder="你的 Firebase 登录密码">
+        <div id="firebaseAuthMessage" class="firebase-auth-message" role="status" aria-live="polite"></div>
+        <button id="firebaseAuthLoginBtn" type="button">登录并连接云端</button>
+        <button id="firebaseAuthResetBtn" class="firebase-auth-secondary" type="button">忘记密码 / 发送重置邮件</button>
+      </div>
+    </section>
+
     <footer class="mobile-status">
       <span id="mobileStatusText">点击指南针回到当前位置</span>
       <strong id="mobileStatusBadge">待定位</strong>
@@ -324,6 +339,7 @@
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/leaflet-rotate@0.2.8/dist/leaflet-rotate-src.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
   <script src="script.js"></script>
 </body>

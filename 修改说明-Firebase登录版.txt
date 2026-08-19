@@ -1,0 +1,23 @@
+送货地图 Firebase 登录保护版
+
+本次修改：
+1. index.html 增加 Firebase Authentication SDK。
+2. index.html 增加首次登录界面：邮箱、密码、登录按钮、忘记密码按钮。
+3. script.js 增加 Firebase Authentication 登录流程。
+4. 登录成功后验证 UID 必须是：I1AGzKoXMTQBEXTWdkLioDbl7Xs2。
+5. 登录采用 Firebase LOCAL persistence；同一浏览器以后通常会自动保持登录，不需要每天重新输入密码。
+6. 密码不会写入 HTML、JS 或 Firestore Rules，也不会保存到网页代码；只交给 Firebase Authentication 验证。
+7. Firestore 只有在 Firebase 身份验证完成后才开始云端监听、读取、写入和照片同步。
+8. admin.html 同样加入 Firebase Authentication；如果与地图同一域名、同一浏览器，通常共享已保存的登录状态。
+9. admin.html 未登录时会要求登录；后台照片从 Firestore 读取时也会先检查身份。
+10. style.css 增加登录界面样式。
+11. firestore.rules 提供最终长期安全规则：仅允许指定 UID 访问 community_map_cloud_data 集合，不设置到期日期。
+
+推荐上线顺序：
+A. 先上传新的 index.html / admin.html / style.css / script.js。
+B. 打开地图，在首次登录界面输入 Firebase Authentication 的邮箱和密码。
+C. 确认页面显示云端已连接/已同步，地图资料正常。
+D. 再到 Firebase Console > Firestore Database > Rules，把 firestore.rules 内容粘贴进去并 Publish。
+E. 发布规则后刷新地图，再确认云端仍然正常同步。
+
+重要：不要把 Firebase 登录密码写进源码或 Firestore Rules。

@@ -4758,15 +4758,17 @@ function importMarkers(file) {
 
 
 
-/* 云端自动同步（Firebase Firestore）
-   固定同步到同一份云端资料；没有同步码、没有登录按钮、没有手动上传/下载按钮。
-   只同步 appData 地图资料；不修改方位定位、指南针、当前公寓搜索/新增/改名逻辑。 */
+/* 云端自动同步（Firebase Firestore + Authentication）
+   固定同步到同一份云端资料；首次在设备上使用时登录 Firebase，之后保持登录状态。
+   Firestore 访问限定为指定 UID；只同步 appData 地图资料。 */
 const CLOUD_DEVICE_ID_STORAGE_KEY = "communityMapCloudDeviceId";
 const CLOUD_COLLECTION_NAME = "community_map_cloud_data";
 const CLOUD_DOCUMENT_ID = "mainData";
 const CLOUD_UPLOAD_DELAY_MS = 1200;
 const CLOUD_LOCAL_EDIT_PROTECT_MS = 10000;
 const CLOUD_MIGRATION_VERSION = 1;
+const FIREBASE_ALLOWED_UID = "I1AGzKoXMTQBEXTWdkLioDbl7Xs2";
+const FIREBASE_LAST_EMAIL_STORAGE_KEY = "xunbaohuoFirebaseLoginEmail";
 let cloudMigrationReady = false;
 
 const firebaseConfig = {
@@ -4792,7 +4794,9 @@ let cloudLocalPendingJson = "";
 
 const cloudSyncState = {
   app: null,
-  db: null
+  auth: null,
+  db: null,
+  authReadyPromise: null
 };
 
 function getCloudDeviceId() {
@@ -4830,17 +4834,175 @@ function hasUsefulLocalCloudData() {
   return Array.isArray(appData?.communities) && appData.communities.length > 0;
 }
 
-async function ensureCloudReady() {
-  if (!window.firebase || !firebase.initializeApp || !firebase.firestore) {
+function getFirebaseAuthUi() {
+  return {
+    overlay: document.getElementById("firebaseAuthOverlay"),
+    email: document.getElementById("firebaseAuthEmail"),
+    password: document.getElementById("firebaseAuthPassword"),
+    message: document.getElementById("firebaseAuthMessage"),
+    loginBtn: document.getElementById("firebaseAuthLoginBtn"),
+    resetBtn: document.getElementById("firebaseAuthResetBtn")
+  };
+}
+
+function setFirebaseAuthMessage(message = "", success = false) {
+  const { message: box } = getFirebaseAuthUi();
+  if (!box) return;
+  box.textContent = message;
+  box.className = "firebase-auth-message" + (success ? " success" : "");
+}
+
+function showFirebaseAuthOverlay(message = "") {
+  const ui = getFirebaseAuthUi();
+  if (!ui.overlay) return;
+  ui.overlay.hidden = false;
+  if (ui.email && !ui.email.value) {
+    try { ui.email.value = localStorage.getItem(FIREBASE_LAST_EMAIL_STORAGE_KEY) || ""; } catch (error) {}
+  }
+  if (ui.password) ui.password.value = "";
+  setFirebaseAuthMessage(message);
+  setTimeout(() => {
+    if (ui.email && !ui.email.value) ui.email.focus();
+    else if (ui.password) ui.password.focus();
+  }, 0);
+}
+
+function hideFirebaseAuthOverlay() {
+  const ui = getFirebaseAuthUi();
+  if (ui.overlay) ui.overlay.hidden = true;
+  if (ui.password) ui.password.value = "";
+  setFirebaseAuthMessage("");
+}
+
+function getFirebaseAuthFriendlyError(error) {
+  const code = String(error?.code || "");
+  if (code.includes("invalid-credential") || code.includes("wrong-password") || code.includes("user-not-found")) {
+    return "邮箱或密码不正确，请重新输入。";
+  }
+  if (code.includes("too-many-requests")) return "登录尝试过多，请稍后再试。";
+  if (code.includes("network-request-failed")) return "网络连接失败，请检查网络后重试。";
+  if (code.includes("invalid-email")) return "邮箱格式不正确。";
+  return error?.message || "Firebase 登录失败。";
+}
+
+function ensureFirebaseApp() {
+  if (!window.firebase || !firebase.initializeApp || !firebase.auth || !firebase.firestore) {
     throw new Error("Firebase SDK 没有加载成功，请检查网络或网页是否能访问 Google Firebase CDN。");
   }
-
   if (!cloudSyncState.app) {
     cloudSyncState.app = firebase.apps && firebase.apps.length ? firebase.app() : firebase.initializeApp(firebaseConfig);
+    cloudSyncState.auth = firebase.auth();
     cloudSyncState.db = firebase.firestore();
   }
+  return cloudSyncState;
+}
 
-  return cloudSyncState.db;
+async function ensureAuthorizedFirebaseUser() {
+  const state = ensureFirebaseApp();
+  if (state.auth.currentUser) {
+    if (state.auth.currentUser.uid === FIREBASE_ALLOWED_UID) return state.auth.currentUser;
+    await state.auth.signOut();
+    throw new Error("当前 Firebase 登录账号不是这个地图允许的账号，请使用地图专用账号登录。");
+  }
+
+  if (!state.authReadyPromise) {
+    state.authReadyPromise = new Promise((resolve, reject) => {
+      let settled = false;
+      const unsubscribe = state.auth.onAuthStateChanged(async (user) => {
+        if (settled) return;
+        if (!user) {
+          settled = true;
+          unsubscribe();
+          resolve(null);
+          return;
+        }
+        if (user.uid !== FIREBASE_ALLOWED_UID) {
+          settled = true;
+          unsubscribe();
+          try { await state.auth.signOut(); } catch (error) {}
+          reject(new Error("当前 Firebase 登录账号不是这个地图允许的账号，请使用地图专用账号登录。"));
+          return;
+        }
+        settled = true;
+        unsubscribe();
+        resolve(user);
+      }, reject);
+    }).finally(() => {
+      state.authReadyPromise = null;
+    });
+  }
+
+  const restoredUser = await state.authReadyPromise;
+  if (restoredUser) return restoredUser;
+  throw new Error("需要登录 Firebase 后才能连接云端。");
+}
+
+async function loginFirebaseFromUi() {
+  const ui = getFirebaseAuthUi();
+  const email = String(ui.email?.value || "").trim();
+  const password = String(ui.password?.value || "");
+  if (!email || !password) {
+    setFirebaseAuthMessage("请输入邮箱和密码。");
+    return;
+  }
+
+  try {
+    const state = ensureFirebaseApp();
+    if (ui.loginBtn) ui.loginBtn.disabled = true;
+    setFirebaseAuthMessage("正在登录...");
+    await state.auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+    const credential = await state.auth.signInWithEmailAndPassword(email, password);
+    if (!credential.user || credential.user.uid !== FIREBASE_ALLOWED_UID) {
+      await state.auth.signOut();
+      throw new Error("这个账号不是地图允许的 Firebase 用户。\n请使用正确账号登录。");
+    }
+    try { localStorage.setItem(FIREBASE_LAST_EMAIL_STORAGE_KEY, email); } catch (error) {}
+    hideFirebaseAuthOverlay();
+    updateCloudSyncStatus("登录成功，正在连接...", "success");
+    cloudListenerStarted = false;
+    await startCloudAutoSync();
+  } catch (error) {
+    console.error("Firebase 登录失败：", error);
+    setFirebaseAuthMessage(getFirebaseAuthFriendlyError(error));
+  } finally {
+    if (ui.loginBtn) ui.loginBtn.disabled = false;
+  }
+}
+
+async function sendFirebasePasswordResetFromUi() {
+  const ui = getFirebaseAuthUi();
+  const email = String(ui.email?.value || "").trim();
+  if (!email) {
+    setFirebaseAuthMessage("请先填写邮箱，再发送密码重置邮件。");
+    return;
+  }
+  try {
+    const state = ensureFirebaseApp();
+    if (ui.resetBtn) ui.resetBtn.disabled = true;
+    await state.auth.sendPasswordResetEmail(email);
+    setFirebaseAuthMessage("密码重置邮件已经发送，请检查邮箱。", true);
+  } catch (error) {
+    setFirebaseAuthMessage(getFirebaseAuthFriendlyError(error));
+  } finally {
+    if (ui.resetBtn) ui.resetBtn.disabled = false;
+  }
+}
+
+function setupFirebaseAuthUi() {
+  const ui = getFirebaseAuthUi();
+  if (ui.loginBtn) ui.loginBtn.addEventListener("click", loginFirebaseFromUi);
+  if (ui.resetBtn) ui.resetBtn.addEventListener("click", sendFirebasePasswordResetFromUi);
+  if (ui.password) {
+    ui.password.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") loginFirebaseFromUi();
+    });
+  }
+}
+
+async function ensureCloudReady() {
+  const state = ensureFirebaseApp();
+  await ensureAuthorizedFirebaseUser();
+  return state.db;
 }
 
 async function getCloudDocumentReference() {
@@ -5071,7 +5233,13 @@ async function startCloudAutoSync() {
     );
   } catch (error) {
     console.error("云端连接失败：", error);
-    updateCloudSyncStatus(getCloudFriendlyError(error, "连接失败"), "error");
+    const message = String(error?.message || "");
+    if (message.includes("需要登录 Firebase") || message.includes("不是这个地图允许的账号")) {
+      updateCloudSyncStatus("等待 Firebase 登录", "warning");
+      showFirebaseAuthOverlay(message.includes("不是这个地图允许的账号") ? message : "首次在此设备使用，请登录 Firebase。" );
+    } else {
+      updateCloudSyncStatus(getCloudFriendlyError(error, "连接失败"), "error");
+    }
     cloudListenerStarted = false;
   }
 }
@@ -5196,6 +5364,7 @@ function setupCloudNetworkWatchers() {
 }
 
 function initCloudSyncUi() {
+  setupFirebaseAuthUi();
   setupCloudNetworkWatchers();
   startCloudAutoSync();
 }
