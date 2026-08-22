@@ -3643,3 +3643,69 @@ body.mobile-edit-mode .mobile-mode-panel .mobile-mode-primary {
 .firebase-auth-message.success {
   color: #166534;
 }
+
+/* 2026-08-21 万用号码多组输入 / 同一物理位置 */
+.universal-number-rows {
+  display: grid;
+  gap: 10px;
+}
+
+.universal-number-row {
+  position: relative;
+  grid-template-columns: minmax(90px, 1fr) minmax(90px, 1fr) minmax(120px, 1.4fr) minmax(112px, .9fr) 34px;
+  align-items: end;
+  padding: 10px;
+  border: 1px solid rgba(20, 121, 232, 0.16);
+  border-radius: 12px;
+  background: rgba(248, 251, 255, 0.96);
+}
+
+.universal-physical-check {
+  display: grid !important;
+  grid-template-rows: auto 38px;
+  align-items: center;
+}
+
+.universal-physical-check input[type="checkbox"] {
+  width: 24px !important;
+  height: 24px !important;
+  margin: 7px auto 0;
+  accent-color: #1479e8;
+}
+
+.universal-remove-row {
+  width: 34px;
+  height: 38px;
+  border: 0;
+  border-radius: 10px;
+  background: #dc3545;
+  color: #fff;
+  font-size: 22px;
+  font-weight: 900;
+}
+
+.universal-add-row-btn {
+  width: 100%;
+  min-height: 38px;
+  margin-top: 9px;
+  border: 1px dashed rgba(20, 121, 232, 0.55);
+  border-radius: 10px;
+  background: #eef6ff;
+  color: #0b63c7;
+  font-weight: 900;
+}
+
+@media (max-width: 700px), (pointer: coarse) {
+  .universal-number-row {
+    grid-template-columns: 1fr 1fr;
+  }
+  .universal-number-row > label:nth-child(3) {
+    grid-column: 1 / -1;
+  }
+  .universal-physical-check {
+    grid-column: 1 / 2;
+  }
+  .universal-remove-row {
+    justify-self: end;
+  }
+}

@@ -791,6 +791,8 @@ const universalNumberTitle = document.getElementById("universalNumberTitle");
 const universalBuildingInput = document.getElementById("universalBuildingInput");
 const universalFloorInput = document.getElementById("universalFloorInput");
 const universalUnitInput = document.getElementById("universalUnitInput");
+const universalNumberRows = document.getElementById("universalNumberRows");
+const addUniversalNumberRowBtn = document.getElementById("addUniversalNumberRowBtn");
 const universalPreview = document.getElementById("universalPreview");
 const closeUniversalNumberPanelBtn = document.getElementById("closeUniversalNumberPanel");
 const confirmUniversalNumberBtn = document.getElementById("confirmUniversalNumber");
@@ -3259,10 +3261,19 @@ function renderBuildings() {
       building.lat = latlng.lat;
       building.lng = latlng.lng;
 
-      // 拖动大楼牌/号码范围牌时，里面的小号码作为一组一起移动。
-      // 已经叠在一起的小号码会继续保持叠放状态，只是整体换位置。
-      if (Number.isFinite(deltaLat) && Number.isFinite(deltaLng)) {
-        (Array.isArray(building.positions) ? building.positions : []).forEach((position) => {
+      const positions = Array.isArray(building.positions) ? building.positions : [];
+      let shouldMoveChildNumbers = false;
+      if (Number.isFinite(deltaLat) && Number.isFinite(deltaLng) && positions.length) {
+        // 手机端不做精细编辑确认；电脑端拖动大楼时，询问下面的小号码是否整体跟随。
+        shouldMoveChildNumbers = isMobileKeypadOnlyMode()
+          ? true
+          : confirm(`是否让“${getBuildingDisplayName(building)}”下面的 ${positions.length} 个号码一起跟随移动？
+
+确定 = 大楼和号码一起移动
+取消 = 只移动大楼`);
+      }
+      if (shouldMoveChildNumbers) {
+        positions.forEach((position) => {
           position.lat = Number(position.lat) + deltaLat;
           position.lng = Number(position.lng) + deltaLng;
         });
@@ -3972,9 +3983,11 @@ function getUniversalFloorRowLatLng(center, rowIndex, rowCount, columnIndex, col
 
 function getUniversalInitialPositionMap(center, itemsForBuilding) {
   const items = Array.isArray(itemsForBuilding) ? itemsForBuilding : [];
+  const positionMap = new Map();
+  if (!items.length) return positionMap;
+
   const floorKeys = [];
   const floorGroups = new Map();
-
   items.forEach((item) => {
     const floorKey = String(item?.universal?.floor || "").trim();
     if (!floorGroups.has(floorKey)) {
@@ -3984,11 +3997,9 @@ function getUniversalInitialPositionMap(center, itemsForBuilding) {
     floorGroups.get(floorKey).push(item);
   });
 
-  const positionMap = new Map();
   const hasRealFloorRows = floorKeys.some((key) => key !== "");
 
-  // 大楼 + 号码、只有号码：没有楼层时，全部号码默认叠在同一个点。
-  // 这样不会铺满屏幕，用户可以按顺序一个个拖开。
+  // 没有楼层时，沿用旧逻辑：全部先叠在一个点，方便逐个拖开。
   if (!hasRealFloorRows) {
     items
       .slice()
@@ -3999,22 +4010,26 @@ function getUniversalInitialPositionMap(center, itemsForBuilding) {
     return positionMap;
   }
 
-  floorKeys.sort((a, b) => {
-    if (a === "") return 1;
-    if (b === "") return -1;
-    return String(a).localeCompare(String(b), "zh-CN", { numeric: true });
+  const unitOrder = [];
+  const unitGroups = new Map();
+  items.forEach((item) => {
+    const unitKey = String(item?.universal?.unit || item?.unit || item?.position || "").trim().toUpperCase();
+    if (!unitGroups.has(unitKey)) {
+      unitGroups.set(unitKey, []);
+      unitOrder.push(unitKey);
+    }
+    unitGroups.get(unitKey).push(item);
   });
 
-  floorKeys.forEach((floorKey, rowIndex) => {
-    const rowItems = (floorGroups.get(floorKey) || [])
-      .slice()
-      .sort((a, b) => String(a.unit || a.position).localeCompare(String(b.unit || b.position), "zh-CN", { numeric: true }));
+  unitOrder.sort((a, b) => String(a).localeCompare(String(b), "zh-CN", { numeric: true }));
+  const maxTextLength = Math.max(2, ...unitOrder.map((value) => String(value).length));
 
-    // 大楼 + 楼层 + 号码、楼层 + 号码：同一层全部叠在一起，不同楼层分成不同堆。
-    // 渲染时会让最小号码在最上面，方便从 1/01 开始依次拖开。
-    const floorLatLng = getUniversalFloorRowLatLng(center, rowIndex, floorKeys.length, 0, 1, 2);
-    rowItems.forEach((item) => {
-      positionMap.set(item, floorLatLng);
+  // 有楼层时，改成“按公寓号分组横向排开”：
+  // 01 一组、02 一组、03 一组……；每一组内部 101 在最上层，201 第二层，301 最下层。
+  unitOrder.forEach((unitKey, columnIndex) => {
+    const columnLatLng = getUniversalFloorRowLatLng(center, 0, 1, columnIndex, unitOrder.length, maxTextLength);
+    (unitGroups.get(unitKey) || []).forEach((item) => {
+      positionMap.set(item, columnLatLng);
     });
   });
 
@@ -5879,17 +5894,117 @@ function getExistingNumbersInCommunity(community) {
   return existing;
 }
 
+function getUniversalInputRows() {
+  return Array.from(universalNumberRows?.querySelectorAll(".universal-number-row") || []);
+}
+
+function getUniversalRowInput(row, selector) {
+  return row?.querySelector(selector) || null;
+}
+
+function getUniversalRowValues() {
+  return getUniversalInputRows().map((row, index) => ({
+    row,
+    rowIndex: index + 1,
+    building: String(getUniversalRowInput(row, "[data-universal-building]")?.value || "").trim(),
+    floor: String(getUniversalRowInput(row, "[data-universal-floor]")?.value || "").trim(),
+    unit: String(getUniversalRowInput(row, "[data-universal-unit]")?.value || "").trim(),
+    samePhysical: Boolean(getUniversalRowInput(row, "[data-universal-physical]")?.checked)
+  }));
+}
+
+function syncUniversalRowControls() {
+  const rows = getUniversalInputRows();
+  rows.forEach((row, index) => {
+    row.dataset.universalRow = String(index + 1);
+    const removeBtn = row.querySelector("[data-remove-universal-row]");
+    if (removeBtn) removeBtn.hidden = rows.length <= 1;
+  });
+}
+
+function bindUniversalRowEvents(row) {
+  if (!row || row.dataset.boundUniversalRow === "1") return;
+  row.dataset.boundUniversalRow = "1";
+  row.querySelectorAll("input").forEach((input) => {
+    const handler = input.type === "checkbox" ? "change" : "input";
+    input.addEventListener(handler, updateUniversalPreview);
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        confirmUniversalNumberInput();
+      }
+    });
+  });
+
+  const removeBtn = row.querySelector("[data-remove-universal-row]");
+  if (removeBtn) {
+    removeBtn.addEventListener("click", () => {
+      const rows = getUniversalInputRows();
+      if (rows.length <= 1) return;
+      row.remove();
+      syncUniversalRowControls();
+      updateUniversalPreview();
+    });
+  }
+}
+
+function createUniversalNumberRow(initial = {}) {
+  const template = getUniversalInputRows()[0];
+  if (!template || !universalNumberRows) return null;
+  const row = template.cloneNode(true);
+  row.removeAttribute("data-bound-universal-row");
+  row.removeAttribute("data-universal-row");
+  row.querySelectorAll("[id]").forEach((node) => node.removeAttribute("id"));
+  const buildingInput = getUniversalRowInput(row, "[data-universal-building]");
+  const floorInput = getUniversalRowInput(row, "[data-universal-floor]");
+  const unitInput = getUniversalRowInput(row, "[data-universal-unit]");
+  const physicalInput = getUniversalRowInput(row, "[data-universal-physical]");
+  if (buildingInput) buildingInput.value = initial.building || "";
+  if (floorInput) floorInput.value = initial.floor || "";
+  if (unitInput) unitInput.value = initial.unit || "";
+  if (physicalInput) physicalInput.checked = Boolean(initial.samePhysical);
+  universalNumberRows.appendChild(row);
+  bindUniversalRowEvents(row);
+  syncUniversalRowControls();
+  return row;
+}
+
+function resetUniversalNumberRows() {
+  const rows = getUniversalInputRows();
+  rows.forEach((row, index) => {
+    if (index === 0) {
+      const buildingInput = getUniversalRowInput(row, "[data-universal-building]");
+      const floorInput = getUniversalRowInput(row, "[data-universal-floor]");
+      const unitInput = getUniversalRowInput(row, "[data-universal-unit]");
+      const physicalInput = getUniversalRowInput(row, "[data-universal-physical]");
+      if (buildingInput) buildingInput.value = "";
+      if (floorInput) floorInput.value = "";
+      if (unitInput) unitInput.value = "";
+      if (physicalInput) physicalInput.checked = false;
+      bindUniversalRowEvents(row);
+    } else {
+      row.remove();
+    }
+  });
+  syncUniversalRowControls();
+}
+
 function getUniversalPreviewText() {
-  const building = universalBuildingInput ? universalBuildingInput.value : "";
-  const floor = universalFloorInput ? universalFloorInput.value : "";
-  const unit = universalUnitInput ? universalUnitInput.value : "";
-  const result = parseUniversalTableInput(building, floor, unit);
-  if (result.error) return "示例：3 4 6 / 1 / 01-15 → 301-315、401-415、601-615；空 / 空 / 101 201 301 → 可按01公用位置联动；空 / 空 / A-G；空 / 空 / 3A 4A；5 / 3 / A-D";
-  const values = result.parsedItems.map((item) => item.original);
-  const buildingCount = (result.buildings || []).filter(Boolean).length;
-  const buildingText = buildingCount > 1 ? `${buildingCount} 栋大楼，` : "";
-  const preview = values.length > 8 ? `${values.slice(0, 8).join("、")} ... ${values[values.length - 1]}` : values.join("、");
-  return `将生成 ${buildingText}${values.length} 个号码：${preview}`;
+  const rows = getUniversalRowValues().filter((item) => item.building || item.floor || item.unit);
+  if (!rows.length) return "示例：5 / 1-3 / 01-08 → 8组叠放；每组最小号码在最上面。1-4 只生成 4 组；8-10 只生成 3 组。";
+
+  const parsedResults = [];
+  for (const row of rows) {
+    const result = parseUniversalTableInput(row.building, row.floor, row.unit);
+    if (result.error) return `第 ${row.rowIndex} 组：${result.error}`;
+    parsedResults.push({ row, result });
+  }
+
+  const totalNumbers = parsedResults.reduce((sum, item) => sum + item.result.parsedItems.length, 0);
+  const totalStacks = parsedResults.reduce((sum, item) => sum + Math.max(1, item.result.units.length), 0);
+  const previewValues = parsedResults.flatMap((item) => item.result.parsedItems.map((entry) => entry.original));
+  const preview = previewValues.length > 10 ? `${previewValues.slice(0, 10).join("、")} ... ${previewValues[previewValues.length - 1]}` : previewValues.join("、");
+  return `将生成 ${rows.length} 组输入 / ${totalStacks} 组地图叠放 / ${totalNumbers} 个号码：${preview}`;
 }
 
 function updateUniversalPreview() {
@@ -5900,9 +6015,7 @@ function openUniversalNumberPanel(latlng) {
   pendingLatLng = latlng;
   const community = ensureActiveCommunity();
   if (universalNumberTitle) universalNumberTitle.innerText = `万用号码输入：${community.name}`;
-  if (universalBuildingInput) universalBuildingInput.value = "";
-  if (universalFloorInput) universalFloorInput.value = "";
-  if (universalUnitInput) universalUnitInput.value = "";
+  resetUniversalNumberRows();
   updateUniversalPreview();
   if (universalNumberPanel) universalNumberPanel.classList.add("is-open");
   setTimeout(() => universalBuildingInput && universalBuildingInput.focus(), 80);
@@ -6085,31 +6198,74 @@ function applyPositionDragWithPhysicalGroup(building, item, startLatLng, endLatL
   });
 }
 
-function addUniversalNumbersAtLatLng(latlng, buildingText, floorText, unitText) {
-  const community = ensureActiveCommunity();
-  const parsed = parseUniversalTableInput(buildingText, floorText, unitText);
-  if (parsed.error) {
-    alert(parsed.error);
+function applyUniversalPhysicalGroupingForBuilding(building) {
+  if (!building) return 0;
+  const groups = new Map();
+
+  (Array.isArray(building.positions) ? building.positions : []).forEach((position) => {
+    if (!position.universal) position.universal = {};
+    const samePhysical = Boolean(position.universal.samePhysical);
+    if (!samePhysical) {
+      delete position.universal.physicalStackKey;
+      return;
+    }
+    const unitKey = String(position.universal.unit || "").trim().toUpperCase();
+    if (!unitKey) {
+      delete position.universal.physicalStackKey;
+      return;
+    }
+    const buildingKey = String(position.universal.building || building.name || "").trim();
+    const key = `universal:${building.id}:${buildingKey}:${unitKey}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push({ position });
+  });
+
+  groups.forEach((refs, key) => arrangePhysicalUnitGroup(key, refs));
+  return groups.size;
+}
+
+function addUniversalNumberGroupsAtLatLng(latlng, inputGroups) {
+  const groups = (Array.isArray(inputGroups) ? inputGroups : []).filter((item) => item && (item.building || item.floor || item.unit));
+  if (!groups.length) {
+    alert("请至少填写一组“大楼 / 楼层 / 公寓号”。");
     return false;
   }
 
-  if (parsed.parsedItems.length > 500) {
+  const community = ensureActiveCommunity();
+  const parsedResults = [];
+  for (const group of groups) {
+    const parsed = parseUniversalTableInput(group.building, group.floor, group.unit);
+    if (parsed.error) {
+      alert(`第 ${group.rowIndex || 1} 组：${parsed.error}`);
+      return false;
+    }
+    parsed.parsedItems.forEach((item) => {
+      item.universal = { ...item.universal, samePhysical: Boolean(group.samePhysical), sourceRowIndex: group.rowIndex || 1 };
+    });
+    parsedResults.push({ group, parsed });
+  }
+
+  const allParsedItems = parsedResults.flatMap((item) => item.parsed.parsedItems);
+  if (allParsedItems.length > 500) {
     alert("一次最多生成 500 个号码。请分批添加，避免地图太卡。");
     return false;
   }
 
   if (!Array.isArray(community.buildings)) community.buildings = [];
   const existing = getExistingNumbersInCommunity(community);
-  const toAdd = parsed.parsedItems.filter((item) => !existing.has(String(item.original)));
-  const skipped = parsed.parsedItems.length - toAdd.length;
+  const toAdd = allParsedItems.filter((item) => !existing.has(String(item.original)));
+  const skipped = allParsedItems.length - toAdd.length;
 
   if (!toAdd.length) {
-    alert("这些号码在当前公寓名牌里已经存在，没有新增。\n\n同一个公寓名牌内完整号码不能重复。");
+    alert(`这些号码在当前公寓名牌里已经存在，没有新增。
+
+同一个公寓名牌内完整号码不能重复。`);
     return false;
   }
 
   const previewValues = toAdd.map((item) => item.original);
   const preview = previewValues.length > 80 ? `${previewValues.slice(0, 80).join(", ")} ...` : previewValues.join(", ");
+  const stackCount = parsedResults.reduce((sum, item) => sum + Math.max(1, item.parsed.units.length), 0);
   const ok = confirm(
     `确定在“${community.name}”里生成 ${toAdd.length} 个号码吗？
 
@@ -6117,7 +6273,7 @@ ${preview}
 
 ${skipped ? `其中 ${skipped} 个重复号码会自动跳过。
 
-` : ""}生成后会先显示大楼牌或号码范围牌；点开后号码会按规则叠放，方便逐个拖动。`
+` : ""}预计形成 ${stackCount} 组地图叠放；每组默认最小号码在最上面。`
   );
   if (!ok) return false;
 
@@ -6130,6 +6286,7 @@ ${skipped ? `其中 ${skipped} 个重复号码会自动跳过。
   });
 
   let firstTouchedBuildingId = null;
+  const touchedBuildings = [];
   Array.from(groupedToAdd.entries()).forEach(([buildingKey, itemsForBuilding], buildingIndex) => {
     let building = community.buildings.find((item) => item.name === buildingKey);
     const existingBuildingLat = Number(building?.lat);
@@ -6156,9 +6313,7 @@ ${skipped ? `其中 ${skipped} 个重复号码会自动跳过。
     }
 
     if (!firstTouchedBuildingId) firstTouchedBuildingId = building.id;
-
     const universalPositionMap = getUniversalInitialPositionMap(buildingLatLng, itemsForBuilding);
-
     itemsForBuilding.forEach((item, index) => {
       const pointLatLng = universalPositionMap?.get(item) || getFlatBulkAddLatLng(buildingLatLng, index, itemsForBuilding.length);
       building.positions.push({
@@ -6167,16 +6322,18 @@ ${skipped ? `其中 ${skipped} 个重复号码会自动跳过。
         lat: pointLatLng.lat,
         lng: pointLatLng.lng,
         originals: [item.original],
-        universal: item.universal
+        universal: { ...item.universal }
       });
       existing.add(String(item.original));
     });
+
+    touchedBuildings.push(building);
   });
 
-  // 每次生成后检查“公寓号尾号相同”的候选组。
-  // 不管是否填写大楼、楼层，只要尾号相同就提示用户决定是否联动。
-  // 例如：101/201/301 -> 01；1楼/A、2楼/A -> A；不同大楼的 A 也会进入提示。
-  const linkedPhysicalGroupCount = askAndApplyPhysicalUnitGrouping(community);
+  let linkedPhysicalGroupCount = 0;
+  touchedBuildings.forEach((building) => {
+    linkedPhysicalGroupCount += applyUniversalPhysicalGroupingForBuilding(building);
+  });
 
   community.type = "universal";
   community.lat = Number(latlng.lat);
@@ -6190,18 +6347,23 @@ ${skipped ? `其中 ${skipped} 个重复号码会自动跳过。
   closeBuildingPanel();
   renderMap();
   const touchedBuildingCount = groupedToAdd.size;
-  updateLocationStatus(`已生成 ${touchedBuildingCount} 栋大楼 / ${toAdd.length} 个号码${skipped ? `，跳过 ${skipped} 个重复号码` : ""}。${linkedPhysicalGroupCount ? `已绑定 ${linkedPhysicalGroupCount} 个同尾号物理位置组，可整组拖动。` : "同尾号号码按你的选择保持绑定或独立。"}`, "success");
+  updateLocationStatus(`已生成 ${touchedBuildingCount} 栋大楼 / ${toAdd.length} 个号码${skipped ? `，跳过 ${skipped} 个重复号码` : ""}。${linkedPhysicalGroupCount ? `已绑定 ${linkedPhysicalGroupCount} 组同一物理位置。` : "当前没有启用同一物理位置联动。"}`, "success");
   return true;
+}
+
+function addUniversalNumbersAtLatLng(latlng, buildingText, floorText, unitText) {
+  return addUniversalNumberGroupsAtLatLng(latlng, [{
+    rowIndex: 1,
+    building: buildingText,
+    floor: floorText,
+    unit: unitText,
+    samePhysical: false
+  }]);
 }
 
 function confirmUniversalNumberInput() {
   if (!pendingLatLng) return;
-  const ok = addUniversalNumbersAtLatLng(
-    pendingLatLng,
-    universalBuildingInput ? universalBuildingInput.value : "",
-    universalFloorInput ? universalFloorInput.value : "",
-    universalUnitInput ? universalUnitInput.value : ""
-  );
+  const ok = addUniversalNumberGroupsAtLatLng(pendingLatLng, getUniversalRowValues());
   if (ok) closeUniversalNumberPanel();
 }
 
