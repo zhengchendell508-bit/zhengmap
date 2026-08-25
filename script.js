@@ -972,7 +972,7 @@ function createNumberIcon(number, size, font, color, shape, extraClass = "", pho
     : size;
   const textColor = getContrastTextColor(color);
   const photoBadgeHtml = photoThumbDataUrl
-    ? `<img class="number-photo-badge" src="${escapeHtml(photoThumbDataUrl)}" alt="有大楼照片">`
+    ? `<img class="number-photo-badge" src="${escapeHtml(photoThumbDataUrl)}" alt="已有照片">`
     : "";
 
   return L.divIcon({
@@ -2524,6 +2524,21 @@ function getCommunityOfficePhotoTitle(community) {
   return `${String(community?.name || "公寓社区")} · 办公室地址照片`;
 }
 
+function getCommunityOfficePhotoThumb(community) {
+  const photo = getCommunityOfficePhotoMeta(community);
+  return String(photo?.thumbDataUrl || "");
+}
+
+function getApartmentMarkerPhotoThumb(community, building) {
+  // 手机送包裹模式下，小公寓号码优先显示“整个公寓社区”的办公室地址照片缩略图。
+  // 这样司机无需进入编辑模式，就能一眼确认这个公寓区是否已经拍过办公室照片。
+  if (isMobileKeypadOnlyMode() && !mobileEditMode) {
+    const officeThumb = getCommunityOfficePhotoThumb(community);
+    if (officeThumb) return officeThumb;
+  }
+  return getBuildingPhotoThumb(building);
+}
+
 function normalizeBuildingPhotoMeta(photo) {
   if (!photo || !photo.hasPhoto) return undefined;
   return {
@@ -3021,6 +3036,93 @@ async function loadCommunityOfficePhotoRecord(community) {
   return null;
 }
 
+function makeSafePhotoDownloadName(value) {
+  const base = String(value || "公寓社区")
+    .trim()
+    .replace(/[\/:*?"<>|]+/g, "_")
+    .replace(/\s+/g, " ")
+    .slice(0, 80) || "公寓社区";
+  return `${base}-办公室地址照片.jpg`;
+}
+
+function dataUrlToBlob(dataUrl) {
+  const text = String(dataUrl || "");
+  const match = text.match(/^data:([^;,]+)?(;base64)?,(.*)$/);
+  if (!match) return null;
+  const mime = match[1] || BUILDING_PHOTO_MIME_TYPE || "image/jpeg";
+  const isBase64 = !!match[2];
+  const body = match[3] || "";
+  if (isBase64) {
+    const binary = atob(body);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+    return new Blob([bytes], { type: mime });
+  }
+  return new Blob([decodeURIComponent(body)], { type: mime });
+}
+
+async function saveOrShareCommunityOfficePhoto(communityId) {
+  const community = getCommunityById(communityId || appData.activeCommunityId);
+  if (!community || !getCommunityOfficePhotoMeta(community)) {
+    updateLocationStatus("当前公寓社区还没有办公室地址照片", "warning");
+    return false;
+  }
+
+  updateLocationStatus("正在准备保存/分享办公室地址照片...", "info");
+  try {
+    const record = await loadCommunityOfficePhotoRecord(community);
+    if (!record?.dataUrl) {
+      throw new Error("没有读取到完整办公室地址照片");
+    }
+
+    const fileName = makeSafePhotoDownloadName(community.name);
+    const blob = dataUrlToBlob(record.dataUrl);
+    if (!blob) throw new Error("照片格式无法识别");
+    const file = new File([blob], fileName, { type: blob.type || BUILDING_PHOTO_MIME_TYPE || "image/jpeg" });
+
+    const canUseShare = typeof navigator !== "undefined"
+      && typeof navigator.share === "function"
+      && typeof navigator.canShare === "function"
+      && navigator.canShare({ files: [file] });
+
+    if (canUseShare) {
+      await navigator.share({
+        title: `${String(community.name || "公寓社区")} 办公室地址照片`,
+        text: "请选择“保存到设备 / 保存图片 / Google 相册”等选项。",
+        files: [file]
+      });
+      updateLocationStatus("已打开系统分享面板，可选择保存到图片/相册", "success");
+      return true;
+    }
+
+    const url = URL.createObjectURL(blob);
+    try {
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName;
+      link.rel = "noopener";
+      link.style.display = "none";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } finally {
+      setTimeout(() => URL.revokeObjectURL(url), 1200);
+    }
+
+    updateLocationStatus("当前浏览器不支持系统分享，已改为下载文件", "warning");
+    return true;
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      updateLocationStatus("你已取消保存/分享办公室地址照片", "warning");
+      return false;
+    }
+    console.error("保存/分享办公室地址照片失败：", error);
+    alert(error?.message || "保存/分享办公室地址照片失败");
+    updateLocationStatus("办公室地址照片保存/分享失败", "error");
+    return false;
+  }
+}
+
 async function openCommunityOfficePhotoViewer(communityId) {
   const community = getCommunityById(communityId || appData.activeCommunityId);
   if (!community || !buildingPhotoViewer || !buildingPhotoViewerImage) return;
@@ -3157,6 +3259,18 @@ function openCommunityOfficePhotoActionPopup(marker, community) {
       openCommunityOfficePhotoViewer(community.id);
     });
     wrap.appendChild(viewBtn);
+
+    const downloadBtn = document.createElement("button");
+    downloadBtn.type = "button";
+    downloadBtn.className = "photo-action-secondary";
+    downloadBtn.innerText = "📥 保存 / 分享照片";
+    downloadBtn.addEventListener("click", async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      map.closePopup();
+      await saveOrShareCommunityOfficePhoto(community.id);
+    });
+    wrap.appendChild(downloadBtn);
   }
 
   const addBtn = document.createElement("button");
@@ -3297,7 +3411,7 @@ function renderCommunitySearchPositions() {
     const marker = L.marker([item.lat, item.lng], {
       icon: (() => {
         const style = getPositionMarkerStyle(building, item);
-        return createNumberIcon(displayNumber, style.size, style.fontSize, style.color, style.shape, markerExtraClass, getBuildingPhotoThumb(building));
+        return createNumberIcon(displayNumber, style.size, style.fontSize, style.color, style.shape, markerExtraClass, getApartmentMarkerPhotoThumb(community, building));
       })(),
       draggable: canEditMapMarkers(),
       riseOnHover: true
@@ -3474,7 +3588,7 @@ function renderFlatNumbers(community) {
     const marker = L.marker([item.lat, item.lng], {
       icon: (() => {
         const style = getPositionMarkerStyle(flatBuilding, item);
-        return createNumberIcon(item.position, style.size, style.fontSize, style.color, style.shape, "flat-marker");
+        return createNumberIcon(item.position, style.size, style.fontSize, style.color, style.shape, "flat-marker", getApartmentMarkerPhotoThumb(community, flatBuilding));
       })(),
       draggable: canEditMapMarkers(),
       riseOnHover: true
@@ -3567,7 +3681,7 @@ function renderSelectedPositions(building) {
     const marker = L.marker([item.lat, item.lng], {
       icon: (() => {
         const style = getPositionMarkerStyle(building, item);
-        return createNumberIcon(item.position, style.size, style.fontSize, style.color, style.shape, markerExtraClass, getBuildingPhotoThumb(building));
+        return createNumberIcon(item.position, style.size, style.fontSize, style.color, style.shape, markerExtraClass, getApartmentMarkerPhotoThumb(getActiveCommunity(), building));
       })(),
       draggable: canEditMapMarkers(),
       riseOnHover: true
