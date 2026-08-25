@@ -143,35 +143,43 @@
       <div class="universal-number-header">
         <div>
           <strong id="universalNumberTitle">万用号码输入</strong>
-          <span>大楼可留空；大楼支持 3、3 4 6、3-6；生成后先显示楼号，点击楼号再展开号码。</span>
+          <span>大楼、楼层都可留空；可新增多个“公寓号物理位置组”，每组可单独决定是否叠在同一个真实入口。</span>
         </div>
         <button id="closeUniversalNumberPanel" type="button" aria-label="关闭万用号码输入">×</button>
       </div>
 
-      <div id="universalNumberRows" class="universal-number-rows" role="group" aria-label="大楼楼层公寓号输入">
-        <div class="universal-number-table universal-number-row" data-universal-row="1">
-          <label>
-            <span>大楼</span>
-            <input id="universalBuildingInput" data-universal-building type="text" inputmode="numeric" placeholder="如 5" autocomplete="off">
-          </label>
-          <label>
-            <span>楼层</span>
-            <input id="universalFloorInput" data-universal-floor type="text" inputmode="text" placeholder="如 1-3" autocomplete="off">
-          </label>
-          <label>
-            <span>公寓号</span>
-            <input id="universalUnitInput" data-universal-unit type="text" inputmode="text" placeholder="如 01-08" autocomplete="off">
-          </label>
+      <div class="universal-number-table universal-shared-fields" role="group" aria-label="大楼和楼层输入">
+        <label>
+          <span>大楼</span>
+          <input id="universalBuildingInput" type="text" inputmode="numeric" placeholder="留空=无大楼；如 3 4 6 或 3-6" autocomplete="off">
+        </label>
+        <label>
+          <span>楼层</span>
+          <input id="universalFloorInput" type="text" inputmode="text" placeholder="留空=无楼层；如 1-3" autocomplete="off">
+        </label>
+      </div>
+
+      <div class="universal-unit-groups-head">
+        <div>
+          <strong>公寓号物理位置组</strong>
+          <span>每一行可代表一个真实入口；勾选后，该行生成的全部完整号码共用同一经纬度。</span>
+        </div>
+        <button id="addUniversalUnitGroupBtn" type="button">＋ 新增一组</button>
+      </div>
+
+      <div id="universalUnitGroups" class="universal-unit-groups" aria-label="公寓号物理位置分组">
+        <div class="universal-unit-group" data-unit-group-id="1">
+          <span class="universal-unit-group-index">位置 1</span>
+          <input class="universal-unit-group-input" type="text" inputmode="text" placeholder="如 01-04、101 102、A-D、1A 1B" autocomplete="off">
           <label class="universal-physical-check">
+            <input class="universal-unit-group-physical" type="checkbox" checked>
             <span>同一物理位置</span>
-            <input id="universalPhysicalInput" data-universal-physical type="checkbox">
           </label>
-          <button class="universal-remove-row" type="button" data-remove-universal-row aria-label="删除这一组" hidden>×</button>
+          <button class="universal-unit-group-remove" type="button" aria-label="删除这个公寓号位置组" disabled>删除</button>
         </div>
       </div>
-      <button id="addUniversalNumberRowBtn" class="universal-add-row-btn" type="button">＋ 增加一组</button>
 
-      <div id="universalPreview" class="universal-preview">示例：5 / 1-3 / 01-08 → 8组叠放；每组最小号码在最上面</div>
+      <div id="universalPreview" class="universal-preview">示例：大楼 5 / 楼层 1-3 / 位置1填 01-04 并勾选 → 101-104、201-204、301-304 共用一个入口位置。</div>
 
       <div class="universal-number-actions">
         <button id="confirmUniversalNumber" type="button">生成号码</button>
@@ -289,13 +297,13 @@
 
     <input id="buildingPhotoInput" type="file" accept="image/jpeg,image/png,image/heic,image/heif,image/*" capture="environment" style="display:none">
 
-    <section id="buildingPhotoViewer" class="building-photo-viewer" aria-label="大楼照片查看" aria-hidden="true">
+    <section id="buildingPhotoViewer" class="building-photo-viewer" aria-label="公寓/大楼照片查看" aria-hidden="true">
       <div class="building-photo-viewer-head">
-        <strong id="buildingPhotoViewerTitle">大楼照片</strong>
-        <button id="closeBuildingPhotoViewer" type="button" aria-label="关闭大楼照片">×</button>
+        <strong id="buildingPhotoViewerTitle">照片</strong>
+        <button id="closeBuildingPhotoViewer" type="button" aria-label="关闭照片">×</button>
       </div>
       <div class="building-photo-viewer-body">
-        <img id="buildingPhotoViewerImage" alt="大楼照片">
+        <img id="buildingPhotoViewerImage" alt="照片">
       </div>
       <div class="building-photo-viewer-actions">
         <button id="replaceBuildingPhotoBtn" type="button">更换照片</button>
