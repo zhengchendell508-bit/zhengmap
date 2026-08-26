@@ -2530,13 +2530,16 @@ function getCommunityOfficePhotoThumb(community) {
 }
 
 function getApartmentMarkerPhotoThumb(community, building) {
-  // 手机送包裹模式下，小公寓号码优先显示“整个公寓社区”的办公室地址照片缩略图。
-  // 这样司机无需进入编辑模式，就能一眼确认这个公寓区是否已经拍过办公室照片。
+  const buildingThumb = getBuildingPhotoThumb(building);
+  const officeThumb = getCommunityOfficePhotoThumb(community);
+
+  // 手机送包裹模式下：优先显示“本楼照片”缩略图；没有再回退到“整个公寓社区”的办公室照片。
+  // 这样司机长按号码给某一栋楼拍过照片后，能马上在这栋楼的小号码上看到更准确的缩略图提示。
   if (isMobileKeypadOnlyMode() && !mobileEditMode) {
-    const officeThumb = getCommunityOfficePhotoThumb(community);
+    if (buildingThumb) return buildingThumb;
     if (officeThumb) return officeThumb;
   }
-  return getBuildingPhotoThumb(building);
+  return buildingThumb || officeThumb || "";
 }
 
 function normalizeBuildingPhotoMeta(photo) {
@@ -3123,6 +3126,204 @@ async function saveOrShareCommunityOfficePhoto(communityId) {
   }
 }
 
+function makeSafeBuildingPhotoDownloadName(building) {
+  const community = getActiveCommunity();
+  const base = String(getBuildingDisplayName(building, community) || "大楼")
+    .trim()
+    .replace(/[\/:*?"<>|]+/g, "_")
+    .replace(/\s+/g, " ")
+    .slice(0, 80) || "大楼";
+  return `${base}-大楼照片.jpg`;
+}
+
+async function saveOrShareBuildingPhoto(buildingId) {
+  const building = getBuildingById(buildingId || selectedBuildingId);
+  if (!building || !getBuildingPhotoMeta(building)) {
+    updateLocationStatus("当前大楼还没有照片", "warning");
+    return false;
+  }
+
+  updateLocationStatus("正在准备保存/分享大楼照片...", "info");
+  try {
+    const record = await loadBuildingPhotoRecord(building);
+    if (!record?.dataUrl) {
+      throw new Error("没有读取到完整大楼照片");
+    }
+
+    const fileName = makeSafeBuildingPhotoDownloadName(building);
+    const blob = dataUrlToBlob(record.dataUrl);
+    if (!blob) throw new Error("照片格式无法识别");
+    const file = new File([blob], fileName, { type: blob.type || BUILDING_PHOTO_MIME_TYPE || "image/jpeg" });
+
+    const canUseShare = typeof navigator !== "undefined"
+      && typeof navigator.share === "function"
+      && typeof navigator.canShare === "function"
+      && navigator.canShare({ files: [file] });
+
+    if (canUseShare) {
+      await navigator.share({
+        title: `${getBuildingPhotoTitle(building)}`,
+        text: "请选择“保存到设备 / 保存图片 / Google 相册”等选项。",
+        files: [file]
+      });
+      updateLocationStatus("已打开系统分享面板，可选择保存到图片/相册", "success");
+      return true;
+    }
+
+    const url = URL.createObjectURL(blob);
+    try {
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName;
+      link.rel = "noopener";
+      link.style.display = "none";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } finally {
+      setTimeout(() => URL.revokeObjectURL(url), 1200);
+    }
+
+    updateLocationStatus("当前浏览器不支持系统分享，已改为下载文件", "warning");
+    return true;
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      updateLocationStatus("你已取消保存/分享大楼照片", "warning");
+      return false;
+    }
+    console.error("保存/分享大楼照片失败：", error);
+    alert(error?.message || "保存/分享大楼照片失败");
+    updateLocationStatus("大楼照片保存/分享失败", "error");
+    return false;
+  }
+}
+
+function openApartmentPhotoActionPopup(marker, community, building) {
+  if (!marker || !community) return;
+  const latlng = typeof marker.getLatLng === "function" ? marker.getLatLng() : null;
+  if (!latlng) return;
+
+  const wrap = document.createElement("div");
+  wrap.className = "building-photo-action-popup";
+
+  const heading = document.createElement("div");
+  heading.className = "building-photo-action-title";
+  heading.innerText = "照片管理";
+  wrap.appendChild(heading);
+
+  const communityLabel = document.createElement("div");
+  communityLabel.className = "building-photo-action-title";
+  communityLabel.style.fontSize = "12px";
+  communityLabel.style.marginTop = "4px";
+  communityLabel.innerText = `${community.name || "公寓社区"} · 应用到整个公寓群`;
+  wrap.appendChild(communityLabel);
+
+  const hasCommunityPhoto = !!getCommunityOfficePhotoMeta(community);
+  if (hasCommunityPhoto) {
+    const viewBtn = document.createElement("button");
+    viewBtn.type = "button";
+    viewBtn.className = "photo-action-secondary";
+    viewBtn.innerText = "📷 查看公寓群照片";
+    viewBtn.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      map.closePopup();
+      openCommunityOfficePhotoViewer(community.id);
+    });
+    wrap.appendChild(viewBtn);
+
+    const shareBtn = document.createElement("button");
+    shareBtn.type = "button";
+    shareBtn.className = "photo-action-secondary";
+    shareBtn.innerText = "📥 保存 / 分享公寓群照片";
+    shareBtn.addEventListener("click", async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      map.closePopup();
+      await saveOrShareCommunityOfficePhoto(community.id);
+    });
+    wrap.appendChild(shareBtn);
+  }
+
+  const addCommunityBtn = document.createElement("button");
+  addCommunityBtn.type = "button";
+  addCommunityBtn.className = "photo-action-primary";
+  addCommunityBtn.innerText = hasCommunityPhoto ? "更换公寓群照片" : "＋ 添加公寓群照片";
+  addCommunityBtn.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    map.closePopup();
+    requestCommunityOfficePhotoFile(community.id);
+  });
+  wrap.appendChild(addCommunityBtn);
+
+  if (building) {
+    const buildingLabel = document.createElement("div");
+    buildingLabel.className = "building-photo-action-title";
+    buildingLabel.style.fontSize = "12px";
+    buildingLabel.style.marginTop = "10px";
+    buildingLabel.innerText = `${getBuildingDisplayName(building, community)} · 只应用到当前大楼`;
+    wrap.appendChild(buildingLabel);
+
+    const hasBuildingPhoto = !!getBuildingPhotoMeta(building);
+    if (hasBuildingPhoto) {
+      const viewBuildingBtn = document.createElement("button");
+      viewBuildingBtn.type = "button";
+      viewBuildingBtn.className = "photo-action-secondary";
+      viewBuildingBtn.innerText = "📷 查看本楼照片";
+      viewBuildingBtn.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        map.closePopup();
+        openBuildingPhotoViewer(building.id);
+      });
+      wrap.appendChild(viewBuildingBtn);
+
+      const shareBuildingBtn = document.createElement("button");
+      shareBuildingBtn.type = "button";
+      shareBuildingBtn.className = "photo-action-secondary";
+      shareBuildingBtn.innerText = "📥 保存 / 分享本楼照片";
+      shareBuildingBtn.addEventListener("click", async (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        map.closePopup();
+        await saveOrShareBuildingPhoto(building.id);
+      });
+      wrap.appendChild(shareBuildingBtn);
+    }
+
+    const addBuildingBtn = document.createElement("button");
+    addBuildingBtn.type = "button";
+    addBuildingBtn.className = "photo-action-primary";
+    addBuildingBtn.innerText = hasBuildingPhoto ? "更换本楼照片" : "＋ 添加本楼照片";
+    addBuildingBtn.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      map.closePopup();
+      requestBuildingPhotoFile(building.id);
+    });
+    wrap.appendChild(addBuildingBtn);
+  }
+
+  const cancelBtn = document.createElement("button");
+  cancelBtn.type = "button";
+  cancelBtn.className = "photo-action-cancel";
+  cancelBtn.innerText = "取消";
+  cancelBtn.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    map.closePopup();
+  });
+  wrap.appendChild(cancelBtn);
+
+  L.popup({
+    closeButton: true,
+    autoPan: true,
+    className: "building-photo-action-popup-shell",
+    offset: [0, -10]
+  }).setLatLng(latlng).setContent(wrap).openOn(map);
+}
+
 async function openCommunityOfficePhotoViewer(communityId) {
   const community = getCommunityById(communityId || appData.activeCommunityId);
   if (!community || !buildingPhotoViewer || !buildingPhotoViewerImage) return;
@@ -3446,7 +3647,7 @@ function renderCommunitySearchPositions() {
     marker.on("contextmenu", (event) => {
       if (isMobileKeypadOnlyMode() && !mobileEditMode) {
         if (event?.originalEvent && L?.DomEvent?.stop) L.DomEvent.stop(event.originalEvent);
-        openBuildingPhotoActionPopup(marker, building);
+        openApartmentPhotoActionPopup(marker, community, building);
         return;
       }
       if (canEditMapMarkers()) deleteSinglePositionFromBuilding(building.id, item.position);
@@ -3608,7 +3809,12 @@ function renderFlatNumbers(community) {
     });
 
     marker.on("click", () => marker.openTooltip());
-    marker.on("contextmenu", () => {
+    marker.on("contextmenu", (event) => {
+      if (isMobileKeypadOnlyMode() && !mobileEditMode) {
+        if (event?.originalEvent && L?.DomEvent?.stop) L.DomEvent.stop(event.originalEvent);
+        openApartmentPhotoActionPopup(marker, community, flatBuilding);
+        return;
+      }
       if (canEditMapMarkers()) deleteSinglePositionFromBuilding(flatBuilding.id, item.position);
     });
 
@@ -3667,6 +3873,7 @@ function renderBuildings() {
 }
 
 function renderSelectedPositions(building) {
+  const community = getActiveCommunity();
   const positions = getSortedPositions(building).filter((item) => selectedPositions.has(item.position));
   // 当批量生成的号码初始位于同一经纬度时，Leaflet 后添加的 marker 会盖在最上面。
   // 这里在“楼组完整号码”模式下按倒序渲染，这样最小号码（如 101）会在最上层，
@@ -3717,7 +3924,7 @@ function renderSelectedPositions(building) {
     marker.on("contextmenu", (event) => {
       if (isMobileKeypadOnlyMode() && !mobileEditMode) {
         if (event?.originalEvent && L?.DomEvent?.stop) L.DomEvent.stop(event.originalEvent);
-        openBuildingPhotoActionPopup(marker, building);
+        openApartmentPhotoActionPopup(marker, community, building);
         return;
       }
       if (canEditMapMarkers()) deleteSinglePositionFromBuilding(building.id, item.position);
@@ -6200,8 +6407,11 @@ function getUniversalUnitRangeLabel(units) {
 
   const numericList = rawList.filter((value) => /^\d+$/.test(value)).sort((a, b) => Number(a) - Number(b));
   if (numericList.length === rawList.length) {
-    if (numericList.length === 1) return numericList[0];
-    return `${numericList[0]}-${numericList[numericList.length - 1]}`;
+    // 这里只生成“没有大楼时”的地图范围牌名称，不改真实公寓号码。
+    // 去掉范围牌最左边无意义的前导 0：001-009 -> 1-9，010-020 -> 10-20。
+    const displayNumber = (value) => String(Number(value));
+    if (numericList.length === 1) return displayNumber(numericList[0]);
+    return `${displayNumber(numericList[0])}-${displayNumber(numericList[numericList.length - 1])}`;
   }
 
   return rawList.length === 1 ? rawList[0] : "独立";
@@ -6338,7 +6548,7 @@ function refreshUniversalUnitGroupRows() {
   rows.forEach((item, index) => {
     item.row.dataset.unitGroupId = String(index + 1);
     const badge = item.row.querySelector(".universal-unit-group-index");
-    if (badge) badge.innerText = `位置 ${index + 1}`;
+    if (badge) badge.innerText = `规则 ${index + 1}`;
     if (item.remove) item.remove.disabled = rows.length <= 1;
   });
 }
@@ -6348,11 +6558,11 @@ function createUniversalUnitGroupRow(value = "", samePhysical = true) {
   const row = document.createElement("div");
   row.className = "universal-unit-group";
   row.innerHTML = `
-    <span class="universal-unit-group-index">位置</span>
-    <input class="universal-unit-group-input" type="text" inputmode="text" placeholder="如 01-04、101 102、A-D、1A 1B" autocomplete="off">
+    <span class="universal-unit-group-index">规则</span>
+    <input class="universal-unit-group-input" type="text" inputmode="text" placeholder="逗号分物理位置：001-009, 010-019, 020-029" autocomplete="off">
     <label class="universal-physical-check">
       <input class="universal-unit-group-physical" type="checkbox">
-      <span>同一物理位置</span>
+      <span>每段同一物理位置</span>
     </label>
     <button class="universal-unit-group-remove" type="button" aria-label="删除这个公寓号位置组">删除</button>
   `;
@@ -6371,28 +6581,56 @@ function resetUniversalUnitGroups() {
   createUniversalUnitGroupRow("", true);
 }
 
+function splitUniversalPhysicalPositionSegments(value) {
+  // 公寓号框中：英文逗号 / 中文逗号 = 下一个物理位置。
+  // 同一段内部仍可用空格、分号等输入多个号码，例如：001 003 005, 010-019。
+  return String(value || "")
+    .split(/[,，]+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
 function collectUniversalInputGroups() {
   const building = universalBuildingInput ? universalBuildingInput.value : "";
   const floor = universalFloorInput ? universalFloorInput.value : "";
   const rows = getUniversalUnitGroupRows();
   const groups = [];
+
   for (const row of rows) {
     const unitText = row.input ? row.input.value : "";
     if (!String(unitText || "").trim()) continue;
-    const parsed = parseUniversalTableInput(building, floor, unitText);
-    if (parsed.error) return { error: `位置 ${row.index + 1}：${parsed.error}` };
-    parsed.parsedItems.forEach((item) => {
-      item.universal = item.universal || {};
-      item.universal.inputPositionGroup = row.index + 1;
-      item.universal.samePhysicalPosition = Boolean(row.physical?.checked);
-    });
-    groups.push({
-      id: String(row.index + 1),
-      index: row.index,
-      samePhysical: Boolean(row.physical?.checked),
-      parsed
-    });
+
+    const segments = splitUniversalPhysicalPositionSegments(unitText);
+    if (!segments.length) continue;
+
+    for (let segmentIndex = 0; segmentIndex < segments.length; segmentIndex += 1) {
+      const segmentText = segments[segmentIndex];
+      const parsed = parseUniversalTableInput(building, floor, segmentText);
+      if (parsed.error) {
+        return { error: `第 ${row.index + 1} 组 · 物理位置 ${segmentIndex + 1}：${parsed.error}` };
+      }
+
+      const physicalGroupNo = groups.length + 1;
+      parsed.parsedItems.forEach((item) => {
+        item.universal = item.universal || {};
+        item.universal.inputPositionGroup = physicalGroupNo;
+        item.universal.inputRuleGroup = row.index + 1;
+        item.universal.inputPhysicalSegment = segmentIndex + 1;
+        item.universal.samePhysicalPosition = Boolean(row.physical?.checked);
+      });
+
+      groups.push({
+        id: `${row.index + 1}.${segmentIndex + 1}`,
+        index: physicalGroupNo - 1,
+        sourceRowIndex: row.index,
+        segmentIndex,
+        sourceText: segmentText,
+        samePhysical: Boolean(row.physical?.checked),
+        parsed
+      });
+    }
   }
+
   if (!groups.length) return { error: "请至少填写一个公寓号位置组。" };
   return { building, floor, groups };
 }

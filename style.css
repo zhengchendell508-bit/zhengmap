@@ -2357,6 +2357,14 @@ body.mobile-edit-mode .mobile-mode-panel .mobile-mode-primary {
   font-weight: 900;
 }
 
+
+.universal-unit-groups-hint {
+  margin: 8px 0 6px;
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.45;
+}
 .universal-unit-groups {
   display: grid;
   gap: 7px;
