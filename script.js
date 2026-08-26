@@ -113,6 +113,28 @@ let deliveryDeliveredPanelOpen = false;
 let deliveryLastHiddenTarget = null;
 let deliveryLastHiddenType = "";
 let deliveryToastTimer = null;
+// 手机长按公寓号码打开照片菜单后，浏览器常会在松手时再补发一次 click。
+// 这段短暂锁定用来吃掉那一次“幽灵短按”，避免照片菜单被“已送达 / 取消”弹窗顶掉。
+let suppressApartmentTapUntil = 0;
+
+function suppressApartmentTapAfterLongPress(ms = 1200) {
+  suppressApartmentTapUntil = Math.max(suppressApartmentTapUntil, Date.now() + ms);
+}
+
+function shouldSuppressApartmentTap(event) {
+  if (Date.now() >= suppressApartmentTapUntil) return false;
+  if (event?.originalEvent) {
+    try {
+      if (L?.DomEvent?.stop) L.DomEvent.stop(event.originalEvent);
+      else {
+        event.originalEvent.preventDefault?.();
+        event.originalEvent.stopPropagation?.();
+      }
+    } catch (error) {}
+  }
+  suppressApartmentTapUntil = 0;
+  return true;
+}
 let communitySuggestionCloseTimer = null;
 let pendingBuildingPhotoBuildingId = null;
 let viewingBuildingPhotoBuildingId = null;
@@ -3637,6 +3659,7 @@ function renderCommunitySearchPositions() {
     });
 
     marker.on("click", (event) => {
+      if (isMobileKeypadOnlyMode() && !mobileEditMode && shouldSuppressApartmentTap(event)) return;
       if (isMobileKeypadOnlyMode() && !mobileEditMode && displayMode === "communitySearch") {
         if (event?.originalEvent && L?.DomEvent?.stop) L.DomEvent.stop(event.originalEvent);
         openDeliveryActionPopup(marker, target);
@@ -3646,6 +3669,7 @@ function renderCommunitySearchPositions() {
     });
     marker.on("contextmenu", (event) => {
       if (isMobileKeypadOnlyMode() && !mobileEditMode) {
+        suppressApartmentTapAfterLongPress();
         if (event?.originalEvent && L?.DomEvent?.stop) L.DomEvent.stop(event.originalEvent);
         openApartmentPhotoActionPopup(marker, community, building);
         return;
@@ -3808,9 +3832,13 @@ function renderFlatNumbers(community) {
       saveData();
     });
 
-    marker.on("click", () => marker.openTooltip());
+    marker.on("click", (event) => {
+      if (isMobileKeypadOnlyMode() && !mobileEditMode && shouldSuppressApartmentTap(event)) return;
+      marker.openTooltip();
+    });
     marker.on("contextmenu", (event) => {
       if (isMobileKeypadOnlyMode() && !mobileEditMode) {
+        suppressApartmentTapAfterLongPress();
         if (event?.originalEvent && L?.DomEvent?.stop) L.DomEvent.stop(event.originalEvent);
         openApartmentPhotoActionPopup(marker, community, flatBuilding);
         return;
@@ -3920,9 +3948,13 @@ function renderSelectedPositions(building) {
       renderMap();
     });
 
-    marker.on("click", () => marker.openTooltip());
+    marker.on("click", (event) => {
+      if (isMobileKeypadOnlyMode() && !mobileEditMode && shouldSuppressApartmentTap(event)) return;
+      marker.openTooltip();
+    });
     marker.on("contextmenu", (event) => {
       if (isMobileKeypadOnlyMode() && !mobileEditMode) {
+        suppressApartmentTapAfterLongPress();
         if (event?.originalEvent && L?.DomEvent?.stop) L.DomEvent.stop(event.originalEvent);
         openApartmentPhotoActionPopup(marker, community, building);
         return;
