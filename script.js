@@ -965,6 +965,65 @@ function getDisplayHeading() {
   return normalizeHeading(myHeading - getMapBearing());
 }
 
+// 电脑端：按住一个按钮时连续缓慢旋转整张地图；松开立即停止。
+const desktopRotateHoldBtn = document.getElementById("desktopRotateHoldBtn");
+let desktopRotateAnimationFrame = null;
+let desktopRotateLastFrameTime = 0;
+const DESKTOP_ROTATE_DEGREES_PER_SECOND = 24;
+
+function desktopRotateFrame(timestamp) {
+  if (!desktopRotateHoldBtn?.classList.contains("is-rotating")) {
+    desktopRotateAnimationFrame = null;
+    desktopRotateLastFrameTime = 0;
+    return;
+  }
+
+  if (!desktopRotateLastFrameTime) desktopRotateLastFrameTime = timestamp;
+  const elapsedSeconds = Math.min((timestamp - desktopRotateLastFrameTime) / 1000, 0.05);
+  desktopRotateLastFrameTime = timestamp;
+  setMapBearing(getMapBearing() + DESKTOP_ROTATE_DEGREES_PER_SECOND * elapsedSeconds);
+  desktopRotateAnimationFrame = requestAnimationFrame(desktopRotateFrame);
+}
+
+function startDesktopHoldRotate(event) {
+  if (!desktopRotateHoldBtn || window.matchMedia("(max-width: 700px)").matches) return;
+  event.preventDefault();
+  if (typeof event.pointerId === "number") {
+    try { desktopRotateHoldBtn.setPointerCapture(event.pointerId); } catch (error) {}
+  }
+  desktopRotateHoldBtn.classList.add("is-rotating");
+  desktopRotateHoldBtn.setAttribute("aria-pressed", "true");
+  desktopRotateLastFrameTime = 0;
+  if (!desktopRotateAnimationFrame) {
+    desktopRotateAnimationFrame = requestAnimationFrame(desktopRotateFrame);
+  }
+}
+
+function stopDesktopHoldRotate(event) {
+  if (!desktopRotateHoldBtn) return;
+  if (event?.pointerId != null) {
+    try { desktopRotateHoldBtn.releasePointerCapture(event.pointerId); } catch (error) {}
+  }
+  desktopRotateHoldBtn.classList.remove("is-rotating");
+  desktopRotateHoldBtn.setAttribute("aria-pressed", "false");
+  desktopRotateLastFrameTime = 0;
+  if (desktopRotateAnimationFrame) {
+    cancelAnimationFrame(desktopRotateAnimationFrame);
+    desktopRotateAnimationFrame = null;
+  }
+}
+
+if (desktopRotateHoldBtn) {
+  desktopRotateHoldBtn.setAttribute("aria-pressed", "false");
+  desktopRotateHoldBtn.addEventListener("pointerdown", startDesktopHoldRotate);
+  desktopRotateHoldBtn.addEventListener("pointerup", stopDesktopHoldRotate);
+  desktopRotateHoldBtn.addEventListener("pointercancel", stopDesktopHoldRotate);
+  desktopRotateHoldBtn.addEventListener("lostpointercapture", stopDesktopHoldRotate);
+  desktopRotateHoldBtn.addEventListener("contextmenu", (event) => event.preventDefault());
+}
+
+window.addEventListener("blur", stopDesktopHoldRotate);
+
 function updateHeadingText() {
   headingText.innerText = `方向: ${getHeadingLabel(myHeading)} ${Math.round(normalizeHeading(myHeading))}°`;
 }
