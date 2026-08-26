@@ -3341,6 +3341,8 @@ function openApartmentPhotoActionPopup(marker, community, building) {
   L.popup({
     closeButton: true,
     autoPan: true,
+    autoClose: false,
+    closeOnClick: false,
     className: "building-photo-action-popup-shell",
     offset: [0, -10]
   }).setLatLng(latlng).setContent(wrap).openOn(map);
