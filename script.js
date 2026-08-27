@@ -4969,6 +4969,40 @@ function getBulkBuildingCenterLatLng(center, index, total) {
 
 // 万能表一次生成很多栋大楼时，先把“大楼牌”整齐排成一个电脑端网格。
 // 这只是第一次生成时的初始位置；用户拖动以后会保存真实坐标，不会再次自动归位。
+// 万能表在每栋大楼下面生成多个物理位置时，使用“小三角”布局：
+// 大楼牌保持在上方中心，两个最常见的物理位置牌放在左下 / 右下。
+// 这里只决定第一次生成时的位置；用户之后拖动保存的真实坐标不会被重新排列。
+function getUniversalPhysicalGroupTriangleLatLng(buildingCenter, index, total) {
+  const safeTotal = Math.max(1, Number(total) || 1);
+  const safeIndex = Math.max(0, Math.min(safeTotal - 1, Number(index) || 0));
+
+  let offsetX = 0;
+  let offsetY = 38;
+
+  if (safeTotal === 2) {
+    offsetX = safeIndex === 0 ? -34 : 34;
+  } else if (safeTotal > 2) {
+    // 超过两个物理位置时继续排在大楼牌下方，最多每行 3 个，避免互相覆盖。
+    const columns = Math.min(3, safeTotal);
+    const row = Math.floor(safeIndex / columns);
+    const col = safeIndex % columns;
+    const itemsInRow = Math.min(columns, safeTotal - row * columns);
+    offsetX = (col - (itemsInRow - 1) / 2) * 58;
+    offsetY = 38 + row * 36;
+  }
+
+  if (map && typeof map.latLngToContainerPoint === "function" && typeof map.containerPointToLatLng === "function") {
+    const point = map.latLngToContainerPoint(buildingCenter);
+    const latlng = map.containerPointToLatLng([point.x + offsetX, point.y + offsetY]);
+    return { lat: latlng.lat, lng: latlng.lng };
+  }
+
+  return {
+    lat: Number(buildingCenter.lat) - offsetY * 0.000001,
+    lng: Number(buildingCenter.lng) + offsetX * 0.0000012
+  };
+}
+
 function getUniversalBulkBuildingGridLatLng(center, index, total) {
   const safeTotal = Math.max(1, Number(total) || 1);
   // 10 栋以上优先 5 列；例如 20 栋就是 5 × 4。
@@ -7370,8 +7404,8 @@ ${skipped ? `其中 ${skipped} 个重复号码会自动跳过。
     if (!Array.isArray(building.physicalOverviewGroups)) building.physicalOverviewGroups = [];
     groupEntries.forEach(([groupNo, groupItems], localGroupIndex) => {
       const groupCenter = groupEntries.length > 1
-        ? getBulkBuildingCenterLatLng(buildingLatLng, localGroupIndex, groupEntries.length)
-        : buildingLatLng;
+        ? getUniversalPhysicalGroupTriangleLatLng(buildingLatLng, localGroupIndex, groupEntries.length)
+        : getUniversalPhysicalGroupTriangleLatLng(buildingLatLng, 0, 1);
       const samePhysical = groupItems.some((item) => Boolean(item.universal?.samePhysicalPosition));
       const physicalStackKey = samePhysical ? `${physicalBatchId}|building:${building.id}|positionGroup:${groupNo}` : "";
       const independentPositionMap = samePhysical ? null : getUniversalInitialPositionMap(groupCenter, groupItems);
