@@ -4018,6 +4018,10 @@ function ensurePhysicalOverviewGroups(building) {
       label: String(group.label || getUniversalPhysicalGroupOverviewLabel(members) || "位置"),
       lat: Number.isFinite(Number(group.lat)) ? Number(group.lat) : Number(first?.lat),
       lng: Number.isFinite(Number(group.lng)) ? Number(group.lng) : Number(first?.lng),
+      // 必须保留这两个状态字段。否则每次 renderMap() 重新修复分组时，
+      // 用户刚拖好的物理位置会再次被当成“旧布局”，随后自动吸回默认三角位置。
+      layoutVersion: Number(group.layoutVersion) || 0,
+      manualPosition: Boolean(group.manualPosition),
       positionIds
     };
   }).filter((group) => Number.isFinite(group.lat) && Number.isFinite(group.lng) && group.positionIds.length);
@@ -4037,7 +4041,7 @@ function ensurePhysicalOverviewGroups(building) {
   if (repaired.length >= 2 && map && typeof map.latLngToContainerPoint === "function" && typeof map.containerPointToLatLng === "function") {
     const buildingPoint = map.latLngToContainerPoint([Number(building.lat), Number(building.lng)]);
     const points = repaired.map((group) => map.latLngToContainerPoint([Number(group.lat), Number(group.lng)]));
-    const allLegacy = repaired.every((group) => Number(group.layoutVersion || 0) < 2 && !group.manualPosition);
+    const allLegacy = repaired.every((group) => Number(group.layoutVersion || 0) < 3 && !group.manualPosition);
     const allClose = points.every((point) => {
       const dx = Number(point.x) - Number(buildingPoint.x);
       const dy = Number(point.y) - Number(buildingPoint.y);
@@ -4054,7 +4058,7 @@ function ensurePhysicalOverviewGroups(building) {
         );
         group.lat = Number(next.lat);
         group.lng = Number(next.lng);
-        group.layoutVersion = 2;
+        group.layoutVersion = 3;
         group.manualPosition = false;
 
         // 同组完整号码也必须同步到新的真实组坐标，避免下一次重画又从旧号码坐标派生回来。
@@ -4138,7 +4142,7 @@ function renderUniversalPhysicalGroupOverviewMarkers(building, community) {
       const latlng = marker.getLatLng();
       physicalGroup.lat = Number(latlng.lat);
       physicalGroup.lng = Number(latlng.lng);
-      physicalGroup.layoutVersion = 2;
+      physicalGroup.layoutVersion = 3;
       physicalGroup.manualPosition = true;
       members.forEach((item) => {
         item.lat = Number(latlng.lat);
@@ -5019,18 +5023,18 @@ function getUniversalPhysicalGroupTriangleLatLng(buildingCenter, index, total) {
   const safeIndex = Math.max(0, Math.min(safeTotal - 1, Number(index) || 0));
 
   let offsetX = 0;
-  let offsetY = 38;
+  let offsetY = 28;
 
   if (safeTotal === 2) {
-    offsetX = safeIndex === 0 ? -34 : 34;
+    offsetX = safeIndex === 0 ? -26 : 26;
   } else if (safeTotal > 2) {
     // 超过两个物理位置时继续排在大楼牌下方，最多每行 3 个，避免互相覆盖。
     const columns = Math.min(3, safeTotal);
     const row = Math.floor(safeIndex / columns);
     const col = safeIndex % columns;
     const itemsInRow = Math.min(columns, safeTotal - row * columns);
-    offsetX = (col - (itemsInRow - 1) / 2) * 58;
-    offsetY = 38 + row * 36;
+    offsetX = (col - (itemsInRow - 1) / 2) * 46;
+    offsetY = 28 + row * 30;
   }
 
   if (map && typeof map.latLngToContainerPoint === "function" && typeof map.containerPointToLatLng === "function") {
@@ -5480,6 +5484,10 @@ function normalizeBuildingList(buildings) {
             label: String(group?.label || "位置"),
             lat: Number(group?.lat),
             lng: Number(group?.lng),
+            // 撤销 / 重新载入 / 云端恢复都必须保留布局版本和“已手动修正”状态。
+            // 丢失 manualPosition 会导致用户拖动后再次被自动布局吸回去。
+            layoutVersion: Number(group?.layoutVersion) || 0,
+            manualPosition: Boolean(group?.manualPosition),
             positionIds: Array.isArray(group?.positionIds) ? group.positionIds.map(String) : []
           })).filter((group) => Number.isFinite(group.lat) && Number.isFinite(group.lng) && group.positionIds.length)
         : undefined,
@@ -7484,7 +7492,7 @@ ${skipped ? `其中 ${skipped} 个重复号码会自动跳过。
           label: getUniversalPhysicalGroupOverviewLabel(createdMembers),
           lat: Number(groupCenter.lat),
           lng: Number(groupCenter.lng),
-          layoutVersion: 2,
+          layoutVersion: 3,
           manualPosition: false,
           positionIds: createdPositionIds
         });
