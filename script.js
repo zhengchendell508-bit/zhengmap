@@ -3942,39 +3942,119 @@ function getUniversalPhysicalGroupOverviewLabel(members) {
   return unique.length <= 1 ? unique[0] : `${unique[0]}-${unique[unique.length - 1]}`;
 }
 
+
+function derivePhysicalOverviewGroupsFromPositions(building) {
+  if (!building) return [];
+  const grouped = new Map();
+  (Array.isArray(building.positions) ? building.positions : []).forEach((item) => {
+    const universal = item?.universal || {};
+    const stackKey = String(universal.physicalStackKey || "").trim();
+    const inputGroupNo = Number(universal.inputPositionGroup) || 0;
+    const samePhysical = Boolean(universal.samePhysicalPosition) || Boolean(stackKey);
+    const fallbackKey = samePhysical && inputGroupNo > 0 ? `inputGroup:${inputGroupNo}` : "";
+    const key = stackKey || fallbackKey;
+    if (!key) return;
+    if (!grouped.has(key)) grouped.set(key, []);
+    grouped.get(key).push(item);
+  });
+
+  return Array.from(grouped.entries())
+    .sort((a, b) => {
+      const aNo = Number(a[1]?.[0]?.universal?.inputPositionGroup) || 0;
+      const bNo = Number(b[1]?.[0]?.universal?.inputPositionGroup) || 0;
+      return aNo - bNo;
+    })
+    .map(([key, members], index) => {
+      const first = members[0];
+      return {
+        id: makeId("physicalOverview"),
+        key,
+        groupNo: Number(first?.universal?.inputPositionGroup) || index + 1,
+        label: getUniversalPhysicalGroupOverviewLabel(members),
+        lat: Number(first?.lat),
+        lng: Number(first?.lng),
+        positionIds: members.map((item) => item.id).filter(Boolean)
+      };
+    })
+    .filter((group) => Number.isFinite(group.lat) && Number.isFinite(group.lng) && group.positionIds.length);
+}
+
+function ensurePhysicalOverviewGroups(building) {
+  if (!building) return [];
+  const positions = Array.isArray(building.positions) ? building.positions : [];
+  const positionById = new Map(positions.map((item) => [item.id, item]));
+  const existing = Array.isArray(building.physicalOverviewGroups)
+    ? building.physicalOverviewGroups.filter((group) => group && typeof group === "object")
+    : [];
+
+  if (!existing.length) {
+    building.physicalOverviewGroups = derivePhysicalOverviewGroupsFromPositions(building);
+    return building.physicalOverviewGroups;
+  }
+
+  const repaired = existing.map((group, index) => {
+    let positionIds = Array.isArray(group.positionIds)
+      ? group.positionIds.filter((id) => positionById.has(id))
+      : [];
+
+    // 旧数据或导入数据 positionIds 缺失时，用分组 key / groupNo 重新绑定一次。
+    if (!positionIds.length) {
+      const key = String(group.key || "").trim();
+      const groupNo = Number(group.groupNo) || 0;
+      positionIds = positions.filter((item) => {
+        const universal = item?.universal || {};
+        const itemKey = String(universal.physicalStackKey || "").trim();
+        const itemGroupNo = Number(universal.inputPositionGroup) || 0;
+        return (key && itemKey === key) || (groupNo > 0 && itemGroupNo === groupNo && Boolean(universal.samePhysicalPosition));
+      }).map((item) => item.id).filter(Boolean);
+    }
+
+    const members = positionIds.map((id) => positionById.get(id)).filter(Boolean);
+    const first = members[0];
+    return {
+      id: group.id || makeId("physicalOverview"),
+      key: String(group.key || first?.universal?.physicalStackKey || `inputGroup:${Number(group.groupNo) || index + 1}`),
+      groupNo: Number(group.groupNo) || Number(first?.universal?.inputPositionGroup) || index + 1,
+      label: String(group.label || getUniversalPhysicalGroupOverviewLabel(members) || "位置"),
+      lat: Number.isFinite(Number(group.lat)) ? Number(group.lat) : Number(first?.lat),
+      lng: Number.isFinite(Number(group.lng)) ? Number(group.lng) : Number(first?.lng),
+      positionIds
+    };
+  }).filter((group) => Number.isFinite(group.lat) && Number.isFinite(group.lng) && group.positionIds.length);
+
+  // 如果万能表后来新增了新的物理位置组，把缺失组补进来，但不覆盖用户已经手动修正过的坐标。
+  const derived = derivePhysicalOverviewGroupsFromPositions(building);
+  const usedIds = new Set(repaired.flatMap((group) => group.positionIds));
+  derived.forEach((group) => {
+    if (group.positionIds.some((id) => !usedIds.has(id))) repaired.push(group);
+  });
+
+  repaired.sort((a, b) => (Number(a.groupNo) || 0) - (Number(b.groupNo) || 0));
+  building.physicalOverviewGroups = repaired;
+  return repaired;
+}
+
+function getPhysicalOverviewGroupMembers(building, group) {
+  if (!building || !group) return [];
+  const ids = new Set(Array.isArray(group.positionIds) ? group.positionIds : []);
+  return (Array.isArray(building.positions) ? building.positions : []).filter((item) => ids.has(item.id));
+}
+
 function renderUniversalPhysicalGroupOverviewMarkers(building, community) {
   if (!building || normalizeCommunityType(community?.type) !== "universal") return;
   // 只在电脑编辑端显示这些“物理位置小牌”；手机送包裹模式不改变。
   if (!canEditMapMarkers()) return;
   if (window.matchMedia && window.matchMedia("(max-width: 700px)").matches) return;
 
-  const groups = new Map();
-  (Array.isArray(building.positions) ? building.positions : []).forEach((item) => {
-    const universal = item?.universal || {};
-    // 优先使用真正的物理绑定 key；如果这一批旧数据没有正确写入 key，
-    // 仍然使用万能表记录的“第几个物理位置组”作为后备分组。
-    // 这样 01-04 与 05-08 永远不会因为 key 缺失而被合并成一个位置。
-    const stackKey = String(universal.physicalStackKey || "").trim();
-    const inputGroupNo = Number(universal.inputPositionGroup) || 0;
-    const samePhysical = Boolean(universal.samePhysicalPosition);
-    const fallbackKey = samePhysical && inputGroupNo > 0 ? `inputGroup:${inputGroupNo}` : "";
-    const key = stackKey || fallbackKey;
-    if (!key) return;
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push(item);
-  });
+  const physicalGroups = ensurePhysicalOverviewGroups(building);
 
-  const groupEntries = Array.from(groups.entries()).sort((a, b) => {
-    const aNo = Number(a[1]?.[0]?.universal?.inputPositionGroup) || 0;
-    const bNo = Number(b[1]?.[0]?.universal?.inputPositionGroup) || 0;
-    return aNo - bNo;
-  });
-
-  groupEntries.forEach(([key, members], groupIndex) => {
+  physicalGroups.forEach((physicalGroup, groupIndex) => {
+    const key = String(physicalGroup.key || "");
+    const members = getPhysicalOverviewGroupMembers(building, physicalGroup);
     if (!members.length) return;
     const first = members[0];
-    const dataLat = Number(first.lat);
-    const dataLng = Number(first.lng);
+    const dataLat = Number(physicalGroup.lat);
+    const dataLng = Number(physicalGroup.lng);
     if (!Number.isFinite(dataLat) || !Number.isFinite(dataLng)) return;
 
     // 物理位置小牌直接使用这一组号码保存的真实坐标。
@@ -3983,7 +4063,7 @@ function renderUniversalPhysicalGroupOverviewMarkers(building, community) {
     // 不能再按大楼中心重新计算，否则鼠标一松开就会“弹回原位”。
     const overviewLatLng = { lat: dataLat, lng: dataLng };
 
-    const label = getUniversalPhysicalGroupOverviewLabel(members);
+    const label = String(physicalGroup.label || getUniversalPhysicalGroupOverviewLabel(members) || "位置");
     const marker = L.marker([overviewLatLng.lat, overviewLatLng.lng], {
       icon: createNumberIcon(
         label,
@@ -4016,6 +4096,8 @@ function renderUniversalPhysicalGroupOverviewMarkers(building, community) {
     marker.on("dragstart", pushHistory);
     marker.on("dragend", () => {
       const latlng = marker.getLatLng();
+      physicalGroup.lat = Number(latlng.lat);
+      physicalGroup.lng = Number(latlng.lng);
       members.forEach((item) => {
         item.lat = Number(latlng.lat);
         item.lng = Number(latlng.lng);
@@ -4084,6 +4166,10 @@ function renderBuildings() {
         (Array.isArray(building.positions) ? building.positions : []).forEach((position) => {
           position.lat = Number(position.lat) + deltaLat;
           position.lng = Number(position.lng) + deltaLng;
+        });
+        ensurePhysicalOverviewGroups(building).forEach((group) => {
+          group.lat = Number(group.lat) + deltaLat;
+          group.lng = Number(group.lng) + deltaLng;
         });
       }
 
@@ -5220,6 +5306,10 @@ function pushHistory() {
 
 function restoreState(snapshot) {
   appData = normalizeLoadedData(snapshot.appData || { version: 3, communities: [] });
+  (Array.isArray(appData.communities) ? appData.communities : []).forEach((community) => {
+    if (normalizeCommunityType(community?.type) !== "universal") return;
+    (Array.isArray(community.buildings) ? community.buildings : []).forEach((building) => ensurePhysicalOverviewGroups(building));
+  });
   markerSize = clampMarkerSizeValue(snapshot.markerSize, DESKTOP_DEFAULT_MARKER_SIZE);
   fontSize = clampFontSizeValue(snapshot.fontSize, DESKTOP_DEFAULT_FONT_SIZE);
   markerColor = snapshot.markerColor || "#1479e8";
@@ -5306,6 +5396,17 @@ function normalizeBuildingList(buildings) {
       shape: building.shape || markerShape,
       groupDisplayLines,
       photo: normalizeBuildingPhotoMeta(building.photo),
+      physicalOverviewGroups: Array.isArray(building.physicalOverviewGroups)
+        ? building.physicalOverviewGroups.map((group, index) => ({
+            id: group?.id || makeId("physicalOverview"),
+            key: String(group?.key || ""),
+            groupNo: Number(group?.groupNo) || index + 1,
+            label: String(group?.label || "位置"),
+            lat: Number(group?.lat),
+            lng: Number(group?.lng),
+            positionIds: Array.isArray(group?.positionIds) ? group.positionIds.map(String) : []
+          })).filter((group) => Number.isFinite(group.lat) && Number.isFinite(group.lng) && group.positionIds.length)
+        : undefined,
       positions
     };
   }).filter((building) => Number.isFinite(building.lat) && Number.isFinite(building.lng));
@@ -7266,6 +7367,7 @@ ${skipped ? `其中 ${skipped} 个重复号码会自动跳过。
     });
 
     const groupEntries = Array.from(inputGroupsForBuilding.entries()).sort((a, b) => a[0] - b[0]);
+    if (!Array.isArray(building.physicalOverviewGroups)) building.physicalOverviewGroups = [];
     groupEntries.forEach(([groupNo, groupItems], localGroupIndex) => {
       const groupCenter = groupEntries.length > 1
         ? getBulkBuildingCenterLatLng(buildingLatLng, localGroupIndex, groupEntries.length)
@@ -7275,6 +7377,7 @@ ${skipped ? `其中 ${skipped} 个重复号码会自动跳过。
       const independentPositionMap = samePhysical ? null : getUniversalInitialPositionMap(groupCenter, groupItems);
       if (samePhysical) physicalStackCount += 1;
 
+      const createdPositionIds = [];
       groupItems.forEach((item, index) => {
         const pointLatLng = samePhysical
           ? { lat: Number(groupCenter.lat), lng: Number(groupCenter.lng) }
@@ -7283,16 +7386,31 @@ ${skipped ? `其中 ${skipped} 个重复号码会自动跳过。
         universal.physicalOverviewGroup = groupNo;
         if (physicalStackKey) universal.physicalStackKey = physicalStackKey;
         else delete universal.physicalStackKey;
-        building.positions.push({
+        const createdPosition = {
           id: makeId("position"),
           position: item.position,
           lat: pointLatLng.lat,
           lng: pointLatLng.lng,
           originals: [item.original],
           universal
-        });
+        };
+        building.positions.push(createdPosition);
+        createdPositionIds.push(createdPosition.id);
         existing.add(String(item.original));
       });
+
+      if (samePhysical && createdPositionIds.length) {
+        const createdMembers = building.positions.filter((position) => createdPositionIds.includes(position.id));
+        building.physicalOverviewGroups.push({
+          id: makeId("physicalOverview"),
+          key: physicalStackKey || `inputGroup:${groupNo}`,
+          groupNo,
+          label: getUniversalPhysicalGroupOverviewLabel(createdMembers),
+          lat: Number(groupCenter.lat),
+          lng: Number(groupCenter.lng),
+          positionIds: createdPositionIds
+        });
+      }
     });
   });
 

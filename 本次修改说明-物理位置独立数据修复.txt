@@ -1,0 +1,29 @@
+本次针对两个反复出现的问题做结构性修复：
+
+1. 物理位置小牌（例如 1-4 / 5-8）不再只是从号码临时推算的显示层。
+   - 每栋大楼新增 physicalOverviewGroups 数据。
+   - 每个物理位置组独立保存 id、groupNo、label、lat、lng、positionIds。
+
+2. 单独拖动物理位置：
+   - dragend 后直接保存该物理位置组自己的 lat/lng。
+   - 同时更新组内所有公寓号码真实坐标。
+   - renderMap 重画时读取保存后的物理位置坐标，因此不会弹回原位。
+
+3. 拖动大楼：
+   - 大楼号码移动多少，所有公寓号码跟随相同位移。
+   - physicalOverviewGroups 中的各个物理位置坐标也同步位移。
+   - 之后仍可单独拖 1-4 / 5-8 微调，而大楼不动。
+
+4. 撤销：
+   - normalizeBuildingList 现在保存和恢复 physicalOverviewGroups。
+   - restoreState 后会重新确认/修复每栋万能大楼的物理位置组绑定。
+   - 撤销不会再只剩大楼牌或解除 1-4 / 5-8 物理位置分组。
+
+5. 兼容旧数据：
+   - 如果旧数据没有 physicalOverviewGroups，会从 universal.physicalStackKey / inputPositionGroup 自动生成一次。
+   - 若 positionIds 缺失，会通过旧分组信息自动重新绑定。
+
+6. 手机端送包裹逻辑未改。
+
+检查：
+- script.js 已通过 node --check JavaScript 语法检查。
