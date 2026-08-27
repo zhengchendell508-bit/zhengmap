@@ -4030,6 +4030,46 @@ function ensurePhysicalOverviewGroups(building) {
   });
 
   repaired.sort((a, b) => (Number(a.groupNo) || 0) - (Number(b.groupNo) || 0));
+
+  // 旧版本已经保存过的 1-4 / 5-8 往往仍是“左右横排”，
+  // 新版不能只在首次生成时使用三角布局，否则旧数据升级后看起来完全没有变化。
+  // 这里只迁移仍紧贴大楼、明显属于旧横排的组；已经被用户单独拖远的真实入口位置不自动改动。
+  if (repaired.length >= 2 && map && typeof map.latLngToContainerPoint === "function" && typeof map.containerPointToLatLng === "function") {
+    const buildingPoint = map.latLngToContainerPoint([Number(building.lat), Number(building.lng)]);
+    const points = repaired.map((group) => map.latLngToContainerPoint([Number(group.lat), Number(group.lng)]));
+    const allLegacy = repaired.every((group) => Number(group.layoutVersion || 0) < 2 && !group.manualPosition);
+    const allClose = points.every((point) => {
+      const dx = Number(point.x) - Number(buildingPoint.x);
+      const dy = Number(point.y) - Number(buildingPoint.y);
+      return Math.hypot(dx, dy) <= 95;
+    });
+    const firstTwoHorizontal = points.length < 2 || Math.abs(Number(points[0].y) - Number(points[1].y)) <= 28;
+
+    if (allLegacy && allClose && firstTwoHorizontal) {
+      repaired.forEach((group, index) => {
+        const next = getUniversalPhysicalGroupTriangleLatLng(
+          { lat: Number(building.lat), lng: Number(building.lng) },
+          index,
+          repaired.length
+        );
+        group.lat = Number(next.lat);
+        group.lng = Number(next.lng);
+        group.layoutVersion = 2;
+        group.manualPosition = false;
+
+        // 同组完整号码也必须同步到新的真实组坐标，避免下一次重画又从旧号码坐标派生回来。
+        const ids = new Set(Array.isArray(group.positionIds) ? group.positionIds : []);
+        positions.forEach((item) => {
+          if (!ids.has(item.id)) return;
+          item.lat = Number(next.lat);
+          item.lng = Number(next.lng);
+        });
+      });
+      // 延迟保存，避免在 renderMap 调用栈中做同步持久化；layoutVersion 会阻止重复迁移。
+      setTimeout(() => saveData(), 0);
+    }
+  }
+
   building.physicalOverviewGroups = repaired;
   return repaired;
 }
@@ -4098,6 +4138,8 @@ function renderUniversalPhysicalGroupOverviewMarkers(building, community) {
       const latlng = marker.getLatLng();
       physicalGroup.lat = Number(latlng.lat);
       physicalGroup.lng = Number(latlng.lng);
+      physicalGroup.layoutVersion = 2;
+      physicalGroup.manualPosition = true;
       members.forEach((item) => {
         item.lat = Number(latlng.lat);
         item.lng = Number(latlng.lng);
@@ -7442,6 +7484,8 @@ ${skipped ? `其中 ${skipped} 个重复号码会自动跳过。
           label: getUniversalPhysicalGroupOverviewLabel(createdMembers),
           lat: Number(groupCenter.lat),
           lng: Number(groupCenter.lng),
+          layoutVersion: 2,
+          manualPosition: false,
           positionIds: createdPositionIds
         });
       }
