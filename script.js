@@ -4011,10 +4011,15 @@ function renderUniversalPhysicalGroupOverviewMarkers(building, community) {
       offset: [0, -10]
     });
 
-    marker.on("click", () => {
-      selectedBuildingId = building.id;
-      openBuildingPanel(building.id);
+    // 物理位置小牌只负责显示和拖动，不再用单击进入大楼面板。
+    // 否则鼠标按下准备拖动时会同时触发 click，造成小牌看起来“瞬间消失”。
+    marker.on("click", (event) => {
+      if (event?.originalEvent && L?.DomEvent?.stop) L.DomEvent.stop(event.originalEvent);
+      marker.openTooltip();
     });
+
+    // 给大楼拖动逻辑留下运行时关联；只存在内存里，不写入 JSON。
+    marker._universalPhysicalOverviewBuildingId = building.id;
 
     marker.on("dragstart", pushHistory);
     marker.on("dragend", () => {
@@ -4047,10 +4052,29 @@ function renderBuildings() {
     }).addTo(map);
 
     let buildingDragStartLatLng = null;
+    let buildingOverviewDragStart = [];
     marker.on("click", () => openBuildingPanel(building.id));
     marker.on("dragstart", () => {
       buildingDragStartLatLng = marker.getLatLng();
+      // 记录这栋楼下面所有物理位置小牌的起点。拖动蓝色大楼牌时，
+      // 这些子位置要实时跟着大楼一起移动。
+      buildingOverviewDragStart = renderedMarkers
+        .filter((childMarker) => childMarker?._universalPhysicalOverviewBuildingId === building.id)
+        .map((childMarker) => ({ marker: childMarker, latlng: childMarker.getLatLng() }));
       pushHistory();
+    });
+    marker.on("drag", () => {
+      if (!buildingDragStartLatLng || !buildingOverviewDragStart.length) return;
+      const current = marker.getLatLng();
+      const deltaLat = Number(current.lat) - Number(buildingDragStartLatLng.lat);
+      const deltaLng = Number(current.lng) - Number(buildingDragStartLatLng.lng);
+      if (!Number.isFinite(deltaLat) || !Number.isFinite(deltaLng)) return;
+      buildingOverviewDragStart.forEach((entry) => {
+        entry.marker.setLatLng([
+          Number(entry.latlng.lat) + deltaLat,
+          Number(entry.latlng.lng) + deltaLng
+        ]);
+      });
     });
     marker.on("dragend", () => {
       const latlng = marker.getLatLng();
@@ -4072,7 +4096,10 @@ function renderBuildings() {
       }
 
       buildingDragStartLatLng = null;
+      buildingOverviewDragStart = [];
       saveData();
+      // 数据和画面都已经同步移动，不需要在这里重画地图，
+      // 避免刚放下大楼时物理位置牌闪烁或消失。
     });
     marker.on("contextmenu", () => {
       if (canEditMapMarkers()) deleteBuildingOrGroupById(building.id);
