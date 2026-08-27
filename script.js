@@ -4035,43 +4035,31 @@ function ensurePhysicalOverviewGroups(building) {
 
   repaired.sort((a, b) => (Number(a.groupNo) || 0) - (Number(b.groupNo) || 0));
 
-  // 旧版本已经保存过的 1-4 / 5-8 往往仍是“左右横排”，
-  // 新版不能只在首次生成时使用三角布局，否则旧数据升级后看起来完全没有变化。
-  // 这里只迁移仍紧贴大楼、明显属于旧横排的组；已经被用户单独拖远的真实入口位置不自动改动。
+  // 布局版本 4：把尚未被用户手动调整的物理位置统一升级为更紧凑的三角排列。
+  // 以前 layoutVersion=3 的数据不会因为只改偏移数值而自动变化，所以这里显式升级到 4。
+  // manualPosition=true 的组永远尊重用户已经摆好的真实入口，不做自动重排。
   if (repaired.length >= 2 && map && typeof map.latLngToContainerPoint === "function" && typeof map.containerPointToLatLng === "function") {
-    const buildingPoint = map.latLngToContainerPoint([Number(building.lat), Number(building.lng)]);
-    const points = repaired.map((group) => map.latLngToContainerPoint([Number(group.lat), Number(group.lng)]));
-    const allLegacy = repaired.every((group) => Number(group.layoutVersion || 0) < 3 && !group.manualPosition);
-    const allClose = points.every((point) => {
-      const dx = Number(point.x) - Number(buildingPoint.x);
-      const dy = Number(point.y) - Number(buildingPoint.y);
-      return Math.hypot(dx, dy) <= 95;
-    });
-    const firstTwoHorizontal = points.length < 2 || Math.abs(Number(points[0].y) - Number(points[1].y)) <= 28;
-
-    if (allLegacy && allClose && firstTwoHorizontal) {
-      repaired.forEach((group, index) => {
-        const next = getUniversalPhysicalGroupTriangleLatLng(
-          { lat: Number(building.lat), lng: Number(building.lng) },
-          index,
-          repaired.length
-        );
-        group.lat = Number(next.lat);
-        group.lng = Number(next.lng);
-        group.layoutVersion = 3;
-        group.manualPosition = false;
-
-        // 同组完整号码也必须同步到新的真实组坐标，避免下一次重画又从旧号码坐标派生回来。
-        const ids = new Set(Array.isArray(group.positionIds) ? group.positionIds : []);
-        positions.forEach((item) => {
-          if (!ids.has(item.id)) return;
-          item.lat = Number(next.lat);
-          item.lng = Number(next.lng);
-        });
+    let upgradedLayout = false;
+    repaired.forEach((group, index) => {
+      if (group.manualPosition || Number(group.layoutVersion || 0) >= 4) return;
+      const next = getUniversalPhysicalGroupTriangleLatLng(
+        { lat: Number(building.lat), lng: Number(building.lng) },
+        index,
+        repaired.length
+      );
+      group.lat = Number(next.lat);
+      group.lng = Number(next.lng);
+      group.layoutVersion = 4;
+      group.manualPosition = false;
+      const ids = new Set(Array.isArray(group.positionIds) ? group.positionIds : []);
+      positions.forEach((item) => {
+        if (!ids.has(item.id)) return;
+        item.lat = Number(next.lat);
+        item.lng = Number(next.lng);
       });
-      // 延迟保存，避免在 renderMap 调用栈中做同步持久化；layoutVersion 会阻止重复迁移。
-      setTimeout(() => saveData(), 0);
-    }
+      upgradedLayout = true;
+    });
+    if (upgradedLayout) setTimeout(() => saveData(), 0);
   }
 
   building.physicalOverviewGroups = repaired;
@@ -4127,29 +4115,46 @@ function renderUniversalPhysicalGroupOverviewMarkers(building, community) {
       offset: [0, -10]
     });
 
-    // 物理位置小牌只负责显示和拖动，不再用单击进入大楼面板。
-    // 否则鼠标按下准备拖动时会同时触发 click，造成小牌看起来“瞬间消失”。
-    marker.on("click", (event) => {
-      if (event?.originalEvent && L?.DomEvent?.stop) L.DomEvent.stop(event.originalEvent);
-      marker.openTooltip();
-    });
+    // 物理位置小牌只负责拖动。不要额外绑定 click 行为，
+    // 避免鼠标按下/松开时 click 与 Leaflet 的 draggable 手势争抢事件。
 
     // 给大楼拖动逻辑留下运行时关联；只存在内存里，不写入 JSON。
     marker._universalPhysicalOverviewBuildingId = building.id;
 
-    marker.on("dragstart", pushHistory);
-    marker.on("dragend", () => {
+    marker.on("dragstart", () => {
+      pushHistory();
+      physicalGroup.manualPosition = true;
+      physicalGroup.layoutVersion = 4;
+      if (map?.dragging?.enabled?.()) map.dragging.disable();
+    });
+
+    // 拖动过程中就实时写入数据，而不是等到 dragend 才写。
+    // 即使期间因为其他 UI/云端状态触发一次重绘，数据源也已经是鼠标当前位置。
+    marker.on("drag", () => {
       const latlng = marker.getLatLng();
       physicalGroup.lat = Number(latlng.lat);
       physicalGroup.lng = Number(latlng.lng);
-      physicalGroup.layoutVersion = 3;
+      physicalGroup.layoutVersion = 4;
       physicalGroup.manualPosition = true;
       members.forEach((item) => {
         item.lat = Number(latlng.lat);
         item.lng = Number(latlng.lng);
       });
+    });
+
+    marker.on("dragend", () => {
+      const latlng = marker.getLatLng();
+      physicalGroup.lat = Number(latlng.lat);
+      physicalGroup.lng = Number(latlng.lng);
+      physicalGroup.layoutVersion = 4;
+      physicalGroup.manualPosition = true;
+      members.forEach((item) => {
+        item.lat = Number(latlng.lat);
+        item.lng = Number(latlng.lng);
+      });
+      if (map?.dragging && !map.dragging.enabled()) map.dragging.enable();
       saveData();
-      renderMap();
+      // 不在这里 renderMap()。重建 marker 正是之前松手后弹回、下一栋难拖的主要诱因。
       updateLocationStatus(`已移动 ${building.name} 号楼 · ${label} 物理位置`, "success");
     });
 
@@ -5023,18 +5028,18 @@ function getUniversalPhysicalGroupTriangleLatLng(buildingCenter, index, total) {
   const safeIndex = Math.max(0, Math.min(safeTotal - 1, Number(index) || 0));
 
   let offsetX = 0;
-  let offsetY = 28;
+  let offsetY = 22;
 
   if (safeTotal === 2) {
-    offsetX = safeIndex === 0 ? -26 : 26;
+    offsetX = safeIndex === 0 ? -24 : 24;
   } else if (safeTotal > 2) {
     // 超过两个物理位置时继续排在大楼牌下方，最多每行 3 个，避免互相覆盖。
     const columns = Math.min(3, safeTotal);
     const row = Math.floor(safeIndex / columns);
     const col = safeIndex % columns;
     const itemsInRow = Math.min(columns, safeTotal - row * columns);
-    offsetX = (col - (itemsInRow - 1) / 2) * 46;
-    offsetY = 28 + row * 30;
+    offsetX = (col - (itemsInRow - 1) / 2) * 42;
+    offsetY = 22 + row * 27;
   }
 
   if (map && typeof map.latLngToContainerPoint === "function" && typeof map.containerPointToLatLng === "function") {
@@ -7492,7 +7497,7 @@ ${skipped ? `其中 ${skipped} 个重复号码会自动跳过。
           label: getUniversalPhysicalGroupOverviewLabel(createdMembers),
           lat: Number(groupCenter.lat),
           lng: Number(groupCenter.lng),
-          layoutVersion: 3,
+          layoutVersion: 4,
           manualPosition: false,
           positionIds: createdPositionIds
         });
