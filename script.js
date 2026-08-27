@@ -3950,21 +3950,49 @@ function renderUniversalPhysicalGroupOverviewMarkers(building, community) {
 
   const groups = new Map();
   (Array.isArray(building.positions) ? building.positions : []).forEach((item) => {
-    const key = String(item?.universal?.physicalStackKey || "").trim();
+    const universal = item?.universal || {};
+    // 优先使用真正的物理绑定 key；如果这一批旧数据没有正确写入 key，
+    // 仍然使用万能表记录的“第几个物理位置组”作为后备分组。
+    // 这样 01-04 与 05-08 永远不会因为 key 缺失而被合并成一个位置。
+    const stackKey = String(universal.physicalStackKey || "").trim();
+    const inputGroupNo = Number(universal.inputPositionGroup) || 0;
+    const samePhysical = Boolean(universal.samePhysicalPosition);
+    const fallbackKey = samePhysical && inputGroupNo > 0 ? `inputGroup:${inputGroupNo}` : "";
+    const key = stackKey || fallbackKey;
     if (!key) return;
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(item);
   });
 
-  Array.from(groups.entries()).forEach(([key, members]) => {
+  const groupEntries = Array.from(groups.entries()).sort((a, b) => {
+    const aNo = Number(a[1]?.[0]?.universal?.inputPositionGroup) || 0;
+    const bNo = Number(b[1]?.[0]?.universal?.inputPositionGroup) || 0;
+    return aNo - bNo;
+  });
+
+  groupEntries.forEach(([key, members], groupIndex) => {
     if (!members.length) return;
     const first = members[0];
-    const lat = Number(first.lat);
-    const lng = Number(first.lng);
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    const dataLat = Number(first.lat);
+    const dataLng = Number(first.lng);
+    if (!Number.isFinite(dataLat) || !Number.isFinite(dataLng)) return;
+
+    // 总览牌只做“视觉排开”：两个物理位置时固定放在楼号左右两边，
+    // 不修改号码的真实经纬度。这样刚生成时一定看得出 1-4 / 5-8 是两个位置。
+    let overviewLatLng = { lat: dataLat, lng: dataLng };
+    if (map && typeof map.latLngToContainerPoint === "function" && typeof map.containerPointToLatLng === "function") {
+      const buildingCenter = L.latLng(Number(building.lat), Number(building.lng));
+      const centerPoint = map.latLngToContainerPoint(buildingCenter);
+      const count = groupEntries.length;
+      const gap = 76;
+      const x = centerPoint.x + (groupIndex - (count - 1) / 2) * gap;
+      const y = centerPoint.y + 44;
+      const ll = map.containerPointToLatLng([x, y]);
+      overviewLatLng = { lat: ll.lat, lng: ll.lng };
+    }
 
     const label = getUniversalPhysicalGroupOverviewLabel(members);
-    const marker = L.marker([lat, lng], {
+    const marker = L.marker([overviewLatLng.lat, overviewLatLng.lng], {
       icon: createNumberIcon(
         label,
         24,
@@ -7227,6 +7255,7 @@ ${skipped ? `其中 ${skipped} 个重复号码会自动跳过。
           ? { lat: Number(groupCenter.lat), lng: Number(groupCenter.lng) }
           : independentPositionMap?.get(item) || getFlatBulkAddLatLng(groupCenter, index, groupItems.length);
         const universal = { ...(item.universal || {}) };
+        universal.physicalOverviewGroup = groupNo;
         if (physicalStackKey) universal.physicalStackKey = physicalStackKey;
         else delete universal.physicalStackKey;
         building.positions.push({
