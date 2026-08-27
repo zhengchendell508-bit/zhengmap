@@ -1041,7 +1041,7 @@ function getContrastTextColor(bgColor) {
   return brightness < 150 ? "#ffffff" : "#000000";
 }
 
-function createNumberIcon(number, size, font, color, shape, extraClass = "", photoThumbDataUrl = "") {
+function createNumberIcon(number, size, font, color, shape, extraClass = "", photoThumbDataUrl = "", visualOffset = null) {
   const numberText = String(number ?? "").trim();
   const isLongApartmentNumber = /^\d{4,}$/.test(numberText);
   const isRangeLabel = /^\d+\s*-\s*\d+$/.test(numberText);
@@ -1077,7 +1077,12 @@ function createNumberIcon(number, size, font, color, shape, extraClass = "", pho
       </div>
     `,
     iconSize: [realWidth, size],
-    iconAnchor: [realWidth / 2, size / 2]
+    // visualOffset 只改变“画出来的位置”，不改变号码真正保存的经纬度。
+    // 正数 x = 往右显示；正数 y = 往下显示。
+    iconAnchor: [
+      realWidth / 2 - Number(visualOffset?.x || 0),
+      size / 2 - Number(visualOffset?.y || 0)
+    ]
   });
 }
 
@@ -3919,6 +3924,86 @@ function renderFlatNumbers(community) {
   });
 }
 
+function getUniversalPhysicalGroupOverviewLabel(members) {
+  const items = Array.isArray(members) ? members : [];
+  const units = items
+    .map((item) => String(item?.universal?.unit || "").trim())
+    .filter(Boolean);
+  if (!units.length) return "位置";
+
+  const unique = Array.from(new Set(units));
+  const numeric = unique.filter((value) => /^\d+$/.test(value));
+  if (numeric.length === unique.length) {
+    const nums = numeric.map(Number).sort((a, b) => a - b);
+    return nums.length <= 1 ? String(nums[0]) : `${nums[0]}-${nums[nums.length - 1]}`;
+  }
+
+  unique.sort((a, b) => a.localeCompare(b, "zh-CN", { numeric: true }));
+  return unique.length <= 1 ? unique[0] : `${unique[0]}-${unique[unique.length - 1]}`;
+}
+
+function renderUniversalPhysicalGroupOverviewMarkers(building, community) {
+  if (!building || normalizeCommunityType(community?.type) !== "universal") return;
+  // 只在电脑编辑端显示这些“物理位置小牌”；手机送包裹模式不改变。
+  if (!canEditMapMarkers()) return;
+  if (window.matchMedia && window.matchMedia("(max-width: 700px)").matches) return;
+
+  const groups = new Map();
+  (Array.isArray(building.positions) ? building.positions : []).forEach((item) => {
+    const key = String(item?.universal?.physicalStackKey || "").trim();
+    if (!key) return;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(item);
+  });
+
+  Array.from(groups.entries()).forEach(([key, members]) => {
+    if (!members.length) return;
+    const first = members[0];
+    const lat = Number(first.lat);
+    const lng = Number(first.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+
+    const label = getUniversalPhysicalGroupOverviewLabel(members);
+    const marker = L.marker([lat, lng], {
+      icon: createNumberIcon(
+        label,
+        24,
+        10,
+        "#ffffff",
+        "rectangle",
+        "universal-physical-overview-marker"
+      ),
+      draggable: true,
+      riseOnHover: true,
+      zIndexOffset: 600
+    }).addTo(map);
+
+    marker.bindTooltip(`物理位置 ${label} · ${members.length} 个号码`, {
+      direction: "top",
+      offset: [0, -10]
+    });
+
+    marker.on("click", () => {
+      selectedBuildingId = building.id;
+      openBuildingPanel(building.id);
+    });
+
+    marker.on("dragstart", pushHistory);
+    marker.on("dragend", () => {
+      const latlng = marker.getLatLng();
+      members.forEach((item) => {
+        item.lat = Number(latlng.lat);
+        item.lng = Number(latlng.lng);
+      });
+      saveData();
+      renderMap();
+      updateLocationStatus(`已移动 ${building.name} 号楼 · ${label} 物理位置`, "success");
+    });
+
+    renderedMarkers.push(marker);
+  });
+}
+
 function renderBuildings() {
   const community = getActiveCommunity();
   getSortedBuildings().forEach((building) => {
@@ -3966,7 +4051,55 @@ function renderBuildings() {
     });
 
     renderedMarkers.push(marker);
+    renderUniversalPhysicalGroupOverviewMarkers(building, community);
   });
+}
+
+function getUniversalPhysicalGroupVisualOffset(building, item) {
+  // 只在电脑端编辑地图上把“同一物理位置”的号码摊开显示。
+  // 数据里的经纬度完全不变，所以拖动、云端同步、手机送货仍然把它们当作同一个真实位置。
+  if (!building || !item || normalizeCommunityType(getActiveCommunity()?.type) !== "universal") return { x: 0, y: 0 };
+  if (!canEditMapMarkers()) return { x: 0, y: 0 };
+  if (window.matchMedia && window.matchMedia("(max-width: 700px)").matches) return { x: 0, y: 0 };
+
+  const key = String(item?.universal?.physicalStackKey || "").trim();
+  if (!key) return { x: 0, y: 0 };
+
+  const members = (Array.isArray(building.positions) ? building.positions : [])
+    .filter((position) => String(position?.universal?.physicalStackKey || "").trim() === key);
+  if (members.length <= 1) return { x: 0, y: 0 };
+
+  const floorKeyOf = (position) => {
+    const explicitFloor = String(position?.universal?.floor || "").trim();
+    if (explicitFloor) return explicitFloor;
+    const full = String(position?.position || "").trim();
+    const match = full.match(/^(\d+)(\d{2})$/);
+    return match ? match[1] : "";
+  };
+  const unitKeyOf = (position) => {
+    const explicitUnit = String(position?.universal?.unit || "").trim();
+    if (explicitUnit) return explicitUnit;
+    const full = String(position?.position || "").trim();
+    const match = full.match(/^\d+(\d{2})$/);
+    return match ? match[1] : full;
+  };
+
+  const floors = Array.from(new Set(members.map(floorKeyOf)))
+    .sort((a, b) => String(a).localeCompare(String(b), "zh-CN", { numeric: true }));
+  const floorKey = floorKeyOf(item);
+  const rowIndex = Math.max(0, floors.indexOf(floorKey));
+  const rowMembers = members
+    .filter((position) => floorKeyOf(position) === floorKey)
+    .sort((a, b) => String(unitKeyOf(a)).localeCompare(String(unitKeyOf(b)), "zh-CN", { numeric: true }));
+  const colIndex = Math.max(0, rowMembers.indexOf(item));
+
+  // 横向按房号，纵向按楼层。间距只影响电脑端视觉，不写进坐标。
+  const xGap = 28;
+  const yGap = 26;
+  return {
+    x: (colIndex - (rowMembers.length - 1) / 2) * xGap,
+    y: (rowIndex - (floors.length - 1) / 2) * yGap
+  };
 }
 
 function renderSelectedPositions(building) {
@@ -3985,7 +4118,16 @@ function renderSelectedPositions(building) {
     const marker = L.marker([item.lat, item.lng], {
       icon: (() => {
         const style = getPositionMarkerStyle(building, item);
-        return createNumberIcon(item.position, style.size, style.fontSize, style.color, style.shape, markerExtraClass, getApartmentMarkerPhotoThumb(getActiveCommunity(), building));
+        return createNumberIcon(
+          item.position,
+          style.size,
+          style.fontSize,
+          style.color,
+          style.shape,
+          markerExtraClass,
+          getApartmentMarkerPhotoThumb(getActiveCommunity(), building),
+          getUniversalPhysicalGroupVisualOffset(building, item)
+        );
       })(),
       draggable: canEditMapMarkers(),
       riseOnHover: true
@@ -4689,6 +4831,32 @@ function getBulkBuildingCenterLatLng(center, index, total) {
   return {
     lat: Number(center.lat) + row * 0.00004,
     lng: Number(center.lng) + col * 0.00004
+  };
+}
+
+// 万能表一次生成很多栋大楼时，先把“大楼牌”整齐排成一个电脑端网格。
+// 这只是第一次生成时的初始位置；用户拖动以后会保存真实坐标，不会再次自动归位。
+function getUniversalBulkBuildingGridLatLng(center, index, total) {
+  const safeTotal = Math.max(1, Number(total) || 1);
+  // 10 栋以上优先 5 列；例如 20 栋就是 5 × 4。
+  const columns = safeTotal >= 10 ? 5 : Math.min(4, Math.ceil(Math.sqrt(safeTotal)));
+  const row = Math.floor(index / columns);
+  const col = index % columns;
+  const rows = Math.ceil(safeTotal / columns);
+  const gapX = 112;
+  const gapY = 94;
+
+  if (map && typeof map.latLngToContainerPoint === "function" && typeof map.containerPointToLatLng === "function") {
+    const point = map.latLngToContainerPoint(center);
+    const x = point.x + (col - (columns - 1) / 2) * gapX;
+    const y = point.y + (row - (rows - 1) / 2) * gapY;
+    const latlng = map.containerPointToLatLng([x, y]);
+    return { lat: latlng.lat, lng: latlng.lng };
+  }
+
+  return {
+    lat: Number(center.lat) - (row - (rows - 1) / 2) * 0.000085,
+    lng: Number(center.lng) + (col - (columns - 1) / 2) * 0.00011
   };
 }
 
@@ -7017,7 +7185,7 @@ ${skipped ? `其中 ${skipped} 个重复号码会自动跳过。
     const buildingLatLng = building && Number.isFinite(existingBuildingLat) && Number.isFinite(existingBuildingLng)
       ? { lat: existingBuildingLat, lng: existingBuildingLng }
       : groupedToAdd.size > 1
-      ? getBulkBuildingCenterLatLng(latlng, buildingIndex, groupedToAdd.size)
+      ? getUniversalBulkBuildingGridLatLng(latlng, buildingIndex, groupedToAdd.size)
       : latlng;
 
     if (!building) {

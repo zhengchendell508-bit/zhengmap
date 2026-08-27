@@ -3927,3 +3927,19 @@ body.mobile-edit-mode .mobile-mode-panel .mobile-mode-primary {
     display: none !important;
   }
 }
+
+/* 电脑端万能表：大楼总览里的物理位置小牌 */
+.universal-physical-overview-marker {
+  border: 2px solid #2563eb !important;
+  color: #1d4ed8 !important;
+  background: rgba(255,255,255,0.97) !important;
+  box-shadow: 0 3px 9px rgba(30, 64, 175, 0.24) !important;
+  font-weight: 900 !important;
+  letter-spacing: -0.2px;
+}
+
+@media (max-width: 700px) {
+  .universal-physical-overview-marker {
+    display: none !important;
+  }
+}
