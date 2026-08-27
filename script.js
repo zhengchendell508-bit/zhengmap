@@ -3977,19 +3977,11 @@ function renderUniversalPhysicalGroupOverviewMarkers(building, community) {
     const dataLng = Number(first.lng);
     if (!Number.isFinite(dataLat) || !Number.isFinite(dataLng)) return;
 
-    // 总览牌只做“视觉排开”：两个物理位置时固定放在楼号左右两边，
-    // 不修改号码的真实经纬度。这样刚生成时一定看得出 1-4 / 5-8 是两个位置。
-    let overviewLatLng = { lat: dataLat, lng: dataLng };
-    if (map && typeof map.latLngToContainerPoint === "function" && typeof map.containerPointToLatLng === "function") {
-      const buildingCenter = L.latLng(Number(building.lat), Number(building.lng));
-      const centerPoint = map.latLngToContainerPoint(buildingCenter);
-      const count = groupEntries.length;
-      const gap = 76;
-      const x = centerPoint.x + (groupIndex - (count - 1) / 2) * gap;
-      const y = centerPoint.y + 44;
-      const ll = map.containerPointToLatLng([x, y]);
-      overviewLatLng = { lat: ll.lat, lng: ll.lng };
-    }
+    // 物理位置小牌直接使用这一组号码保存的真实坐标。
+    // 万能表第一次批量生成时，组坐标本身已经自动排在大楼附近；
+    // 用户以后单独拖动 1-4 / 5-8 后，重画地图必须继续使用拖动后的新坐标，
+    // 不能再按大楼中心重新计算，否则鼠标一松开就会“弹回原位”。
+    const overviewLatLng = { lat: dataLat, lng: dataLng };
 
     const label = getUniversalPhysicalGroupOverviewLabel(members);
     const marker = L.marker([overviewLatLng.lat, overviewLatLng.lng], {
@@ -5272,7 +5264,13 @@ function normalizeBuildingList(buildings) {
       size: Number.isFinite(Number(item.size)) ? Number(item.size) : undefined,
       fontSize: Number.isFinite(Number(item.fontSize)) ? Number(item.fontSize) : undefined,
       shape: ["circle", "square", "rectangle"].includes(item.shape) ? item.shape : undefined,
-      originals: Array.isArray(item.originals) ? item.originals.map(String) : []
+      originals: Array.isArray(item.originals) ? item.originals.map(String) : [],
+      // 撤销 / 导入 / 云端恢复时必须保留万能表的物理位置分组元数据。
+      // physicalStackKey、inputPositionGroup、samePhysicalPosition 等都在这里；
+      // 如果丢掉，撤销以后就只剩大楼牌，1-4 / 5-8 小牌会消失。
+      universal: item.universal && typeof item.universal === "object"
+        ? JSON.parse(JSON.stringify(item.universal))
+        : undefined
     })).filter((item) => Number.isFinite(item.lat) && Number.isFinite(item.lng)) : [];
 
     // 修复旧版本数据：如果楼组显示行写成 201-316，实际应理解为 201-216 + 301-316，
