@@ -3811,8 +3811,13 @@ function openCommunityBuildings(communityId) {
   renderMap();
 
   // 点击公寓名牌后，把视野重新框到这个公寓自己的楼栋/号码范围。
-  // 否则名牌坐标和楼栋坐标不一致时，手机端会出现空白地图。
-  fitCommunityBuildingsIntoMap(community);
+  // 手机端继续保留原来的自动框选。
+  // 电脑端如果已经旋转地图，则保持当前中心、缩放和旋转角度，
+  // 避免 leaflet-rotate 在 bearing 非 0 时执行 fitBounds 造成视野突然跳到别处。
+  const desktopRotatedView = !isMobileKeypadOnlyMode() && Math.abs(getMapBearing()) > 0.1;
+  if (!desktopRotatedView) {
+    fitCommunityBuildingsIntoMap(community);
+  }
 
   // 点击公寓名牌后：地图显示大楼号，同时保留底部号码搜索框。
   if (communitySearchTitle) communitySearchTitle.innerText = community.name || "公寓群";
