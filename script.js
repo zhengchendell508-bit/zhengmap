@@ -831,7 +831,10 @@ const cloudSyncStatus = document.getElementById("cloudSyncStatus");
 let mobileEditMode = localStorage.getItem("mobileEditMode") === "1";
 
 function isMobileKeypadOnlyMode() {
-  return window.matchMedia && window.matchMedia("(max-width: 700px), (pointer: coarse)").matches;
+  // 手机端只按窄屏布局判断。
+  // 不再使用 (pointer: coarse)，避免带触摸屏的电脑被误判成手机，
+  // 从而把电脑端公寓名牌点击错误导向“办公室地址照片”。
+  return window.matchMedia && window.matchMedia("(max-width: 700px)").matches;
 }
 
 function canEditMapMarkers() {
