@@ -3973,6 +3973,11 @@ function derivePhysicalOverviewGroupsFromPositions(building) {
         label: getUniversalPhysicalGroupOverviewLabel(members),
         lat: Number(first?.lat),
         lng: Number(first?.lng),
+        // 只有在 physicalOverviewGroups 丢失/损坏时才会走到这里重新推导。
+        // 此时 positions 里的坐标就是当前真实位置，必须把它当成已经确认的位置保护起来，
+        // 否则 ensurePhysicalOverviewGroups() 会把它误认为旧布局，再吸回默认三角形。
+        layoutVersion: 4,
+        manualPosition: true,
         positionIds: members.map((item) => item.id).filter(Boolean)
       };
     })
@@ -5416,12 +5421,25 @@ function undoLastAction() {
 }
 
 function saveData(options = {}) {
-  localStorage.setItem("communityBuildingMapData", JSON.stringify(appData));
+  // 本地浏览器永远是第一落点：先同步写入 localStorage，成功后才允许排队云端同步。
+  // 这样拖动物理位置后，即使云端监听或 renderMap 很快触发，本机也已经有最新坐标和手动布局状态。
+  let localSaved = false;
+  try {
+    localStorage.setItem("communityBuildingMapData", JSON.stringify(appData));
+    localSaved = true;
+  } catch (error) {
+    console.error("本地浏览器保存失败：", error);
+    updateCloudSyncStatus?.("本地保存失败，已暂停云端同步", "error");
+  }
+
+  if (!localSaved) return false;
+
   if (!options.skipCloudSync && initialDataLoadDone) {
     cloudLocalDirtySinceMs = Date.now();
     cloudLocalPendingJson = getLocalCloudJson();
     queueCloudAutoUpload();
   }
+  return true;
 }
 
 function normalizeBuildingList(buildings) {
@@ -7353,6 +7371,28 @@ function applyPositionDragWithPhysicalGroup(building, item, startLatLng, endLatL
     position.lat = Number(position.lat) + deltaLat;
     position.lng = Number(position.lng) + deltaLng;
   });
+
+  // 如果拖的是“同一物理位置”中的任意一个号码，物理位置总览组也必须同步移动并永久标记为手动位置。
+  // 否则号码坐标虽然已经变了，但 physicalOverviewGroup 仍保留旧三角形中心，下一次 renderMap() 就会看起来弹回去。
+  const stackKey = String(item?.universal?.physicalStackKey || "").trim();
+  const itemGroupNo = Number(item?.universal?.inputPositionGroup) || 0;
+  if (building && (stackKey || itemGroupNo > 0)) {
+    const groups = ensurePhysicalOverviewGroups(building);
+    const group = groups.find((candidate) => {
+      const candidateKey = String(candidate?.key || "").trim();
+      const candidateGroupNo = Number(candidate?.groupNo) || 0;
+      return (stackKey && candidateKey === stackKey) || (!stackKey && itemGroupNo > 0 && candidateGroupNo === itemGroupNo);
+    });
+
+    if (group) {
+      const currentGroupLat = Number(group.lat);
+      const currentGroupLng = Number(group.lng);
+      group.lat = Number.isFinite(currentGroupLat) ? currentGroupLat + deltaLat : newLat;
+      group.lng = Number.isFinite(currentGroupLng) ? currentGroupLng + deltaLng : newLng;
+      group.layoutVersion = 4;
+      group.manualPosition = true;
+    }
+  }
 }
 
 function addUniversalNumbersAtLatLng(latlng, buildingText, floorText, inputGroups) {
